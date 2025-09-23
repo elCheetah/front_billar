@@ -10,7 +10,8 @@ module.exports = function (api) {
           path: ".env",
         },
       ],
-      "nativewind/babel"
+      "nativewind/babel",
+      "react-native-worklets/plugin" 
     ],
   };
 };
