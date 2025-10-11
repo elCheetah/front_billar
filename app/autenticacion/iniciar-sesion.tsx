@@ -1,9 +1,12 @@
 import { useRouter } from "expo-router";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import { Colores } from "../../constants/Colores";
 
 export default function PantallaIniciarSesion() {
   const router = useRouter();
+
+  const irAlMenuPrincipal = () => {
+    router.replace("/(principal)");
+  };
 
   return (
     <View style={estilos.contenedor}>
@@ -20,18 +23,24 @@ export default function PantallaIniciarSesion() {
         secureTextEntry
       />
 
-      <TouchableOpacity
-        onPress={() => router.push("/autenticacion/recuperar/paso1-correo")}
-      >
+      <TouchableOpacity>
         <Text style={estilos.enlace}>¿Olvidaste tu contraseña?</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={estilos.boton}>
+      <TouchableOpacity style={estilos.boton} onPress={irAlMenuPrincipal}>
         <Text style={estilos.textoBoton}>INICIAR SESIÓN</Text>
       </TouchableOpacity>
     </View>
   );
 }
+
+const Colores = {
+  primario: "#0066FF",
+  primarioOscuro: "#0033A0",
+  fondo: "#F4F7FB",
+  textoClaro: "#FFFFFF",
+  borde: "#E0E0E0",
+};
 
 const estilos = StyleSheet.create({
   contenedor: {
