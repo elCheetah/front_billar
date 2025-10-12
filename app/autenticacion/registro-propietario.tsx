@@ -2,137 +2,238 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  Alert,
   Image,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 
 export default function RegistroPropietario() {
   const router = useRouter();
 
   // Datos del propietario
-  const [primerAp, setPrimerAp] = useState("");
-  const [segundoAp, setSegundoAp] = useState("");
-  const [nombres, setNombres] = useState("");
-  const [celular, setCelular] = useState("");
-  const [correo, setCorreo] = useState("");
-  const [contrasena, setContrasena] = useState("");
-  const [confirmarContrasena, setConfirmarContrasena] = useState("");
+  const [form, setForm] = useState({
+    primerAp: "",
+    segundoAp: "",
+    nombres: "",
+    celular: "",
+    correo: "",
+    contrasena: "",
+    confirmarContrasena: "",
+    nombreLocal: "",
+    gps: "",
+    tipoBillar: "",
+    ciudad: "",
+    direccion: "",
+  });
 
-  // Datos del local
-  const [nombreLocal, setNombreLocal] = useState("");
-  const [gps, setGps] = useState("");
-  const [tipoBillar, setTipoBillar] = useState("");
-  const [ciudad, setCiudad] = useState("");
-  const [direccion, setDireccion] = useState("");
+  const [errores, setErrores] = useState<Record<string, string>>({});
   const [imagenesLocal, setImagenesLocal] = useState<string[]>([]);
-
-  // Datos de las mesas
   const [mesas, setMesas] = useState<
     { nroMesa: string; descripcion: string; fotos: string[] }[]
-  >([]);
+  >([{ nroMesa: "", descripcion: "", fotos: [] }]);
 
-  // Validaciones
   const soloLetras = /^[A-Za-zÁÉÍÓÚáéíóúñÑ\s]+$/;
   const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const celularValido = /^[0-9]{8,}$/;
+  const gpsValido =
+    /^-?\d{1,2}\.\d{1,8},\s*-?\d{1,3}\.\d{1,8}$/; // ej: "-17.3895, -66.1567"
+  const contrasenaValida =
+    /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*_.])[A-Za-z\d!@#$%^&*_.]{6,}$/;
+
+  // Actualiza campo y valida al instante
+  const actualizarCampo = (campo: string, valor: string) => {
+    setForm({ ...form, [campo]: valor });
+    validarCampo(campo, valor);
+  };
+
+  const validarCampo = (campo: string, valor: string) => {
+    let error = "";
+
+    switch (campo) {
+      case "primerAp":
+      case "segundoAp":
+      case "nombres":
+      case "ciudad":
+      case "nombreLocal":
+        if (!soloLetras.test(valor.trim())) error = "Solo se permiten letras.";
+        break;
+      case "celular":
+        if (!celularValido.test(valor.trim()))
+          error = "Debe tener al menos 8 dígitos numéricos.";
+        break;
+      case "correo":
+        if (!correoValido.test(valor.trim()))
+          error = "Formato de correo no válido (ej: nombre@correo.com).";
+        break;
+      case "contrasena":
+        if (!contrasenaValida.test(valor))
+          error =
+            "Debe tener 6+ caracteres, una mayúscula, un número y un símbolo.";
+        break;
+      case "confirmarContrasena":
+        if (valor !== form.contrasena)
+          error = "Las contraseñas no coinciden.";
+        break;
+      case "gps":
+        if (valor.trim() !== "" && !gpsValido.test(valor.trim()))
+          error = "Formato incorrecto. Ejemplo: -17.3895, -66.1567";
+        break;
+      case "direccion":
+        if (valor.trim().length < 5)
+          error = "La dirección debe tener al menos 5 caracteres.";
+        break;
+    }
+
+    setErrores((prev) => ({ ...prev, [campo]: error }));
+  };
 
   const formularioValido =
-    soloLetras.test(primerAp) &&
-    soloLetras.test(segundoAp) &&
-    soloLetras.test(nombres) &&
-    celularValido.test(celular) &&
-    correoValido.test(correo) &&
-    contrasena.length >= 6 &&
-    contrasena === confirmarContrasena &&
-    soloLetras.test(nombreLocal) &&
-    gps.length >= 5 &&
-    tipoBillar.length >= 3 &&
-    soloLetras.test(ciudad) &&
-    direccion.length >= 5 &&
-    mesas.length >= 1;
+    Object.values(form).every((v) => v.trim() !== "") &&
+    Object.values(errores).every((e) => e === "") &&
+    mesas.length > 0 &&
+    mesas.every((m) => m.nroMesa.trim() && m.descripcion.trim());
 
-  // Funciones
   const agregarMesa = () => {
     setMesas([...mesas, { nroMesa: "", descripcion: "", fotos: [] }]);
   };
 
-  const actualizarMesa = (index: number, campo: string, valor: string) => {
-    const nuevasMesas = [...mesas];
-    nuevasMesas[index] = { ...nuevasMesas[index], [campo]: valor };
-    setMesas(nuevasMesas);
+  const actualizarMesa = (i: number, campo: string, valor: string) => {
+    const copia = [...mesas];
+    copia[i] = { ...copia[i], [campo]: valor };
+    setMesas(copia);
   };
 
   const subirImagen = async (tipo: "local" | "mesa", indexMesa?: number) => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.5,
-      base64: true,
+      quality: 0.6,
     });
+
     if (!result.canceled) {
-      const imagen = result.assets[0].uri;
-      if (tipo === "local") setImagenesLocal([...imagenesLocal, imagen]);
+      const uri = result.assets[0].uri;
+      if (tipo === "local") setImagenesLocal([...imagenesLocal, uri]);
       else if (indexMesa !== undefined) {
         const nuevasMesas = [...mesas];
-        nuevasMesas[indexMesa].fotos.push(imagen);
+        nuevasMesas[indexMesa].fotos.push(uri);
         setMesas(nuevasMesas);
       }
     }
   };
 
   const manejarRegistro = () => {
-    if (!formularioValido) return alert("Complete todos los campos correctamente");
-    alert("Registro exitoso 🎱");
+    if (!formularioValido) {
+      Alert.alert("Formulario incompleto", "Corrige los errores antes de continuar.");
+      return;
+    }
+    Alert.alert("Éxito", "Propietario registrado correctamente 🎱");
     router.replace("/(principal)");
   };
 
   return (
     <ScrollView contentContainerStyle={estilos.scroll}>
       <View style={estilos.contenedor}>
-        {/* Título general */}
         <Text style={[estilos.titulo, { color: Colores.rojo }]}>
           Registrarse como Propietario de Local de Billar
         </Text>
 
-        {/* Datos del propietario */}
+        {/* DATOS DEL PROPIETARIO */}
         <Text style={[estilos.subtitulo, { color: Colores.verde }]}>
           Datos del Propietario
         </Text>
 
-        <TextInput style={estilos.campo} placeholder="Primer Apellido" value={primerAp} onChangeText={setPrimerAp} />
-        <TextInput style={estilos.campo} placeholder="Segundo Apellido" value={segundoAp} onChangeText={setSegundoAp} />
-        <TextInput style={estilos.campo} placeholder="Nombres" value={nombres} onChangeText={setNombres} />
-        <TextInput style={estilos.campo} placeholder="Celular" keyboardType="numeric" value={celular} onChangeText={setCelular} />
-        <TextInput style={estilos.campo} placeholder="Correo electrónico" keyboardType="email-address" value={correo} onChangeText={setCorreo} />
-        <TextInput style={estilos.campo} placeholder="Contraseña" secureTextEntry value={contrasena} onChangeText={setContrasena} />
-        <TextInput style={estilos.campo} placeholder="Confirmar contraseña" secureTextEntry value={confirmarContrasena} onChangeText={setConfirmarContrasena} />
+        {["primerAp", "segundoAp", "nombres", "celular", "correo", "contrasena", "confirmarContrasena"].map(
+          (campo, idx) => (
+            <View key={idx}>
+              <TextInput
+                style={estilos.campo}
+                placeholder={
+                  campo === "primerAp"
+                    ? "Primer Apellido"
+                    : campo === "segundoAp"
+                    ? "Segundo Apellido"
+                    : campo === "nombres"
+                    ? "Nombres"
+                    : campo === "celular"
+                    ? "Celular"
+                    : campo === "correo"
+                    ? "Correo electrónico"
+                    : campo === "contrasena"
+                    ? "Contraseña"
+                    : "Confirmar Contraseña"
+                }
+                secureTextEntry={campo.includes("contrasena")}
+                keyboardType={
+                  campo === "correo"
+                    ? "email-address"
+                    : campo === "celular"
+                    ? "numeric"
+                    : "default"
+                }
+                autoCapitalize={campo === "correo" ? "none" : "words"}
+                value={(form as any)[campo]}
+                onChangeText={(v) => actualizarCampo(campo, v)}
+              />
+              {errores[campo] ? (
+                <Text style={estilos.textoError}>{errores[campo]}</Text>
+              ) : null}
+            </View>
+          )
+        )}
 
-        {/* Datos del local */}
-        <Text style={[estilos.subtitulo, { color: Colores.verde }]}>Datos del Local</Text>
+        {/* DATOS DEL LOCAL */}
+        <Text style={[estilos.subtitulo, { color: Colores.verde }]}>
+          Datos del Local
+        </Text>
 
-        <TextInput style={estilos.campo} placeholder="Nombre del local" value={nombreLocal} onChangeText={setNombreLocal} />
-        <TextInput style={estilos.campo} placeholder="URL GPS / Latitud y Longitud" value={gps} onChangeText={setGps} />
-        <TextInput style={estilos.campo} placeholder="Tipo de billar (Ej. Pool, Snooker...)" value={tipoBillar} onChangeText={setTipoBillar} />
-        <TextInput style={estilos.campo} placeholder="Ciudad" value={ciudad} onChangeText={setCiudad} />
-        <TextInput style={estilos.campo} placeholder="Dirección o descripción" value={direccion} onChangeText={setDireccion} />
+        {["nombreLocal", "gps", "tipoBillar", "ciudad", "direccion"].map(
+          (campo, idx) => (
+            <View key={idx}>
+              <TextInput
+                style={estilos.campo}
+                placeholder={
+                  campo === "nombreLocal"
+                    ? "Nombre del Local"
+                    : campo === "gps"
+                    ? "Latitud, Longitud (ej: -17.38, -66.15)"
+                    : campo === "tipoBillar"
+                    ? "Tipo de Billar"
+                    : campo === "ciudad"
+                    ? "Ciudad"
+                    : "Dirección o Descripción"
+                }
+                value={(form as any)[campo]}
+                onChangeText={(v) => actualizarCampo(campo, v)}
+              />
+              {errores[campo] ? (
+                <Text style={estilos.textoError}>{errores[campo]}</Text>
+              ) : null}
+            </View>
+          )
+        )}
 
-        {/* Imágenes del local */}
+        {/* IMÁGENES DEL LOCAL */}
         <Text style={estilos.textoAzul}>Imágenes del Local</Text>
         <View style={estilos.filaImagenes}>
           {imagenesLocal.map((img, i) => (
             <Image key={i} source={{ uri: img }} style={estilos.imgPreview} />
           ))}
-          <TouchableOpacity style={estilos.botonImagen} onPress={() => subirImagen("local")}>
+          <TouchableOpacity
+            style={estilos.botonImagen}
+            onPress={() => subirImagen("local")}
+          >
             <Text style={estilos.textoMas}>＋</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Sección de mesas */}
-        <Text style={[estilos.subtitulo, { color: Colores.rojo }]}>Datos de las Mesas</Text>
+        {/* DATOS DE MESAS */}
+        <Text style={[estilos.subtitulo, { color: Colores.rojo }]}>
+          Datos de las Mesas (mínimo 1)
+        </Text>
         <TouchableOpacity style={estilos.botonCrearMesa} onPress={agregarMesa}>
           <Text style={estilos.textoAzul}>＋ Crear una Mesa</Text>
         </TouchableOpacity>
@@ -140,23 +241,38 @@ export default function RegistroPropietario() {
         {mesas.map((mesa, index) => (
           <View key={index} style={estilos.cardMesa}>
             <Text style={estilos.textoNegrita}>Mesa {index + 1}</Text>
-            <TextInput style={estilos.campo} placeholder="Número de mesa" value={mesa.nroMesa} onChangeText={(t) => actualizarMesa(index, "nroMesa", t)} />
-            <TextInput style={estilos.campo} placeholder="Descripción" value={mesa.descripcion} onChangeText={(t) => actualizarMesa(index, "descripcion", t)} />
-            <Text style={estilos.textoAzul}>Fotos de la mesa</Text>
+            <TextInput
+              style={estilos.campo}
+              placeholder="Nro de Mesa"
+              value={mesa.nroMesa}
+              onChangeText={(t) => actualizarMesa(index, "nroMesa", t)}
+            />
+            <TextInput
+              style={estilos.campo}
+              placeholder="Descripción"
+              value={mesa.descripcion}
+              onChangeText={(t) => actualizarMesa(index, "descripcion", t)}
+            />
+            <Text style={estilos.textoAzul}>Fotos de la Mesa</Text>
             <View style={estilos.filaImagenes}>
               {mesa.fotos.map((f, i) => (
                 <Image key={i} source={{ uri: f }} style={estilos.imgPreview} />
               ))}
-              <TouchableOpacity style={estilos.botonImagen} onPress={() => subirImagen("mesa", index)}>
+              <TouchableOpacity
+                style={estilos.botonImagen}
+                onPress={() => subirImagen("mesa", index)}
+              >
                 <Text style={estilos.textoMas}>＋</Text>
               </TouchableOpacity>
             </View>
           </View>
         ))}
 
-        {/* Botón final */}
         <TouchableOpacity
-          style={[estilos.botonRegistrar, { backgroundColor: formularioValido ? Colores.primario : "#A0C4FF" }]}
+          style={[
+            estilos.botonRegistrar,
+            { backgroundColor: formularioValido ? Colores.primario : "#A0C4FF" },
+          ]}
           disabled={!formularioValido}
           onPress={manejarRegistro}
         >
@@ -167,7 +283,6 @@ export default function RegistroPropietario() {
   );
 }
 
-// 🎨 Paleta de colores
 const Colores = {
   primario: "#0066FF",
   primarioOscuro: "#0033A0",
@@ -179,29 +294,11 @@ const Colores = {
   verde: "#2A9D8F",
 };
 
-// 💅 Estilos
 const estilos = StyleSheet.create({
-  scroll: {
-    flexGrow: 1,
-    backgroundColor: Colores.fondo,
-    paddingBottom: 40,
-  },
-  contenedor: {
-    paddingHorizontal: 24,
-    paddingVertical: 30,
-  },
-  titulo: {
-    fontSize: 22,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  subtitulo: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginTop: 20,
-    marginBottom: 10,
-  },
+  scroll: { flexGrow: 1, backgroundColor: Colores.fondo, paddingBottom: 40 },
+  contenedor: { paddingHorizontal: 24, paddingVertical: 30 },
+  titulo: { fontSize: 22, fontWeight: "bold", textAlign: "center", marginBottom: 20 },
+  subtitulo: { fontSize: 18, fontWeight: "bold", marginTop: 20, marginBottom: 10 },
   campo: {
     width: "100%",
     backgroundColor: "#fff",
@@ -209,8 +306,9 @@ const estilos = StyleSheet.create({
     borderColor: Colores.borde,
     padding: 12,
     borderRadius: 10,
-    marginBottom: 12,
+    marginBottom: 8,
   },
+  textoError: { color: Colores.error, fontSize: 13, marginBottom: 8 },
   filaImagenes: {
     flexDirection: "row",
     alignItems: "center",
@@ -226,24 +324,10 @@ const estilos = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  imgPreview: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-  },
-  textoMas: {
-    fontSize: 28,
-    color: Colores.primario,
-  },
-  textoAzul: {
-    color: Colores.primario,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  textoNegrita: {
-    fontWeight: "bold",
-    marginBottom: 5,
-  },
+  imgPreview: { width: 60, height: 60, borderRadius: 8 },
+  textoMas: { fontSize: 28, color: Colores.primario },
+  textoAzul: { color: Colores.primario, fontWeight: "600", marginBottom: 6 },
+  textoNegrita: { fontWeight: "bold", marginBottom: 5 },
   botonCrearMesa: {
     backgroundColor: "#E8F0FF",
     borderRadius: 10,
@@ -259,12 +343,7 @@ const estilos = StyleSheet.create({
     padding: 12,
     marginBottom: 16,
   },
-  botonRegistrar: {
-    width: "100%",
-    padding: 14,
-    borderRadius: 12,
-    marginTop: 10,
-  },
+  botonRegistrar: { width: "100%", padding: 14, borderRadius: 12, marginTop: 10 },
   textoLleno: {
     color: Colores.textoClaro,
     fontWeight: "bold",
