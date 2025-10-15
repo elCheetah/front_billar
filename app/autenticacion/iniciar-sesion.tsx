@@ -24,7 +24,8 @@ export default function PantallaIniciarSesion() {
       />
 
       <TouchableOpacity>
-        <Text style={estilos.enlace}>¿Olvidaste tu contraseña?</Text>
+        <Text style={estilos.enlace} onPress={() => router.push("./recuperar/ingresar-correo")}
+>¿Olvidaste tu contraseña?</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={estilos.boton} onPress={irAlMenuPrincipal}>
