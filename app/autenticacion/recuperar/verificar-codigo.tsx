@@ -1,6 +1,18 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { api } from "../../../components/api";
+import ConfirmModal from "../../../components/modals/ConfirmModal";
+import ResultModal from "../../../components/modals/ResultModal";
 
 const Colores = {
   primario: "#0066FF",
@@ -8,6 +20,7 @@ const Colores = {
   fondo: "#F4F7FB",
   textoClaro: "#FFFFFF",
   borde: "#E0E0E0",
+  error: "#FF4B4B",
 };
 
 const DURATION_SECONDS = 5 * 60; // 5 minutos
@@ -15,10 +28,40 @@ const DURATION_SECONDS = 5 * 60; // 5 minutos
 export default function VerificarCodigo() {
   const router = useRouter();
   const { correo } = useLocalSearchParams<{ correo?: string }>();
+
   const [codigo, setCodigo] = useState("");
   const [segundos, setSegundos] = useState(DURATION_SECONDS);
+  const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
 
-  // Countdown visual (no bloquea – solo UI)
+  // Modales
+  const [result, setResult] = useState<{
+    visible: boolean;
+    type: "success" | "error";
+    title: string;
+    message: string;
+    onClose?: () => void;
+  }>({ visible: false, type: "success", title: "", message: "" });
+  const [confirmReenviar, setConfirmReenviar] = useState(false);
+  const [confirmVerificar, setConfirmVerificar] = useState(false);
+
+  // Guardarraíl: si no hay correo, volvemos a la pantalla anterior
+  useEffect(() => {
+    if (!correo) {
+      setResult({
+        visible: true,
+        type: "error",
+        title: "Falta información",
+        message: "No se encontró el correo de la solicitud.",
+        onClose: () => {
+          setResult((s) => ({ ...s, visible: false }));
+          router.replace("/autenticacion/recuperar/ingresar-correo");
+        },
+      });
+    }
+  }, [correo]);
+
+  // Countdown visual
   useEffect(() => {
     const t = setInterval(() => {
       setSegundos((s) => (s > 0 ? s - 1 : 0));
@@ -32,30 +75,74 @@ export default function VerificarCodigo() {
     return `${m}:${s}`;
   }, [segundos]);
 
+  // Validación local: 6 caracteres alfanuméricos
   const valido = /^[A-Za-z0-9]{6}$/.test(codigo);
 
-  const verificar = () => {
-    if (!valido) {
-      Alert.alert("Código inválido", "Debe tener 6 caracteres (3 números y 3 letras).");
-      return;
+  async function reenviarCodigo() {
+    setConfirmReenviar(false);
+    setResending(true);
+    try {
+      await api("/auth/recovery/enviar-codigo", {
+        method: "POST",
+        body: { correo },
+      });
+      setSegundos(DURATION_SECONDS);
+      setResult({
+        visible: true,
+        type: "success",
+        title: "Código reenviado",
+        message: "Hemos enviado un nuevo código a tu correo.",
+        onClose: () => setResult((s) => ({ ...s, visible: false })),
+      });
+    } catch (e: any) {
+      setResult({
+        visible: true,
+        type: "error",
+        title: "No se pudo reenviar",
+        message: e?.message || "Intenta nuevamente más tarde.",
+        onClose: () => setResult((s) => ({ ...s, visible: false })),
+      });
+    } finally {
+      setResending(false);
     }
-    if (segundos === 0) {
-      Alert.alert("Código vencido", "Vuelve a solicitar un nuevo código.");
-      return;
-    }
-    // Luego: POST /auth/reset/verificar-codigo  (recibirás un token)
-    // Por ahora navegamos con params simulados:
-    router.push({
-      pathname: "./nueva-contrasena",
-      params: { correo, token: "token-simulado" },
-    });
-  };
+  }
 
-  const reenviar = () => {
-    // Luego: re-llamar a /auth/reset/enviar-codigo
-    setSegundos(DURATION_SECONDS);
-    Alert.alert("Código reenviado", `Si ${correo} existe, se envió un nuevo código.`);
-  };
+  async function verificarCodigo() {
+    setConfirmVerificar(false);
+    setLoading(true);
+    try {
+      const resp = await api("/auth/recovery/verificar-codigo", {
+        method: "POST",
+        body: { correo, codigo },
+      });
+      // resp: { ok:true, resetToken }
+      setResult({
+        visible: true,
+        type: "success",
+        title: "Código verificado",
+        message: "Ahora define tu nueva contraseña.",
+        onClose: () => {
+          setResult((s) => ({ ...s, visible: false }));
+          router.push({
+            pathname: "./nueva-contrasena",
+            params: { correo: String(correo), token: String(resp.resetToken), codigo },
+          });
+        },
+      });
+    } catch (e: any) {
+      setResult({
+        visible: true,
+        type: "error",
+        title: "Código inválido",
+        message: e?.message || "Verifica e intenta nuevamente.",
+        onClose: () => setResult((s) => ({ ...s, visible: false })),
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const disableReenviar = segundos > 0 || resending;
 
   return (
     <KeyboardAvoidingView
@@ -63,35 +150,91 @@ export default function VerificarCodigo() {
       behavior={Platform.select({ ios: "padding", android: undefined })}
     >
       <View style={estilos.card}>
-        <Text style={estilos.titulo}>Revisar código de verificación</Text>
+        <Text style={estilos.titulo}>Verificar código</Text>
         <Text style={estilos.parrafo}>
           Enviamos un código a <Text style={{ fontWeight: "bold" }}>{correo}</Text>.{"\n"}
           Tiempo restante: <Text style={{ fontWeight: "bold" }}>{tiempo}</Text>
         </Text>
 
         <TextInput
-          style={[estilos.campo, codigo.length > 0 && !valido && estilos.error]}
+          style={[
+            estilos.campo,
+            codigo.length > 0 && !valido ? estilos.error : null,
+          ]}
           placeholder="Ingresa el código (6 caracteres)"
           autoCapitalize="characters"
           value={codigo}
           onChangeText={(t) => setCodigo(t.replace(/\s/g, ""))}
           maxLength={6}
         />
+        {codigo.length > 0 && !valido ? (
+          <Text style={estilos.textoError}>
+            Debe ser alfanumérico, 6 caracteres.
+          </Text>
+        ) : null}
 
         <TouchableOpacity
-          style={[estilos.boton, { backgroundColor: valido ? Colores.primario : "#A0C4FF" }]}
-          disabled={!valido}
-          onPress={verificar}
+          style={[
+            estilos.boton,
+            {
+              backgroundColor:
+                valido && !loading ? Colores.primario : "#A0C4FF",
+            },
+          ]}
+          disabled={!valido || loading}
+          onPress={() => setConfirmVerificar(true)}
         >
-          <Text style={estilos.textoBoton}>VERIFICAR CÓDIGO</Text>
+          {loading ? (
+            <ActivityIndicator color={Colores.textoClaro} />
+          ) : (
+            <Text style={estilos.textoBoton}>VERIFICAR CÓDIGO</Text>
+          )}
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={reenviar} disabled={segundos > 0} style={estilos.enlaceBtn}>
-          <Text style={[estilos.enlace, { opacity: segundos > 0 ? 0.4 : 1 }]}>
+        <TouchableOpacity
+          onPress={() => setConfirmReenviar(true)}
+          disabled={disableReenviar}
+          style={estilos.enlaceBtn}
+        >
+          <Text
+            style={[
+              estilos.enlace,
+              { opacity: disableReenviar ? 0.4 : 1 },
+            ]}
+          >
             Reenviar código
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Confirmaciones */}
+      <ConfirmModal
+        visible={confirmReenviar}
+        title="Reenviar código"
+        message={`¿Enviar un nuevo código a ${correo}?`}
+        cancelText="No"
+        confirmText="Reenviar"
+        onCancel={() => setConfirmReenviar(false)}
+        onConfirm={reenviarCodigo}
+      />
+
+      <ConfirmModal
+        visible={confirmVerificar}
+        title="Confirmar verificación"
+        message="¿Verificar el código ingresado?"
+        cancelText="Cancelar"
+        confirmText="Verificar"
+        onCancel={() => setConfirmVerificar(false)}
+        onConfirm={verificarCodigo}
+      />
+
+      <ResultModal
+        visible={result.visible}
+        type={result.type}
+        title={result.title}
+        message={result.message}
+        onClose={result.onClose || (() => setResult((s) => ({ ...s, visible: false })))}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -123,12 +266,13 @@ const estilos = StyleSheet.create({
     borderColor: Colores.borde,
     padding: 12,
     borderRadius: 10,
-    marginBottom: 16,
+    marginBottom: 6,
     letterSpacing: 2,
     textAlign: "center",
   },
-  error: { borderColor: "#FF4B4B" },
-  boton: { padding: 14, borderRadius: 12 },
+  textoError: { color: Colores.error, marginBottom: 10, textAlign: "center" },
+  error: { borderColor: Colores.error },
+  boton: { padding: 14, borderRadius: 12, marginTop: 6 },
   textoBoton: {
     color: Colores.textoClaro,
     fontWeight: "bold",
