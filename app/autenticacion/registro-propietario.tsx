@@ -1,13 +1,13 @@
 // app/autenticacion/registro-propietario.tsx
-import * as FileSystem from "expo-file-system";
-import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,10 +15,17 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import * as ImagePicker from "expo-image-picker";
+
 import { api } from "../../components/api";
 import ConfirmModal from "../../components/modals/ConfirmModal";
 import ResultModal from "../../components/modals/ResultModal";
 import { saveAuth } from "../../utils/authStorage";
+
+type TipoMesa = "POOL" | "CARAMBOLA" | "SNOOKER" | "MIXTO";
+const TIPOS: TipoMesa[] = ["POOL", "CARAMBOLA", "SNOOKER", "MIXTO"];
 
 const Colores = {
   primario: "#0066FF",
@@ -30,339 +37,338 @@ const Colores = {
   error: "#FF4B4B",
 };
 
-const TIPOS_MESA = ["POOL", "CARAMBOLA", "SNOOKER", "MIXTO"] as const;
-type TipoMesa = (typeof TIPOS_MESA)[number];
+const MAX_IMAGE_BYTES = 500 * 1024; // 500 KB
+
+// Reglas
+const soloLetras = /^[A-Za-zÁÉÍÓÚáéíóúñÑ\s]+$/;
+const empiezaConMayuscula = /^[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚáéíóúÑ\s]*$/;
+const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const celularValido = /^[0-9]{6,20}$/;
+const urlGpsValida = /^https?:\/\/.+/;
+const passRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*_.])[A-Za-z\d!@#$%^&*_.]{6,}$/;
+const decimalValido = /^\d+(\.\d+)?$/;
+
+function normalizeDecimal(input: string) {
+  let v = input.replace(",", ".").replace(/[^0-9.]/g, "");
+  const parts = v.split(".");
+  if (parts.length > 2) v = parts[0] + "." + parts.slice(1).join("");
+  return v;
+}
+
+type Touched<T> = { [K in keyof T]?: boolean };
 
 type MesaForm = {
-  nroMesa: string;
+  numero: string;
+  tipo: TipoMesa | "";
+  precio: string;
   descripcion: string;
-  tipo_mesa?: TipoMesa;
-  precio_hora: string;
-  fotos: string[];
-  error?: string;
+  fotos: string[]; // dataURI
+  touched: Touched<{
+    numero: string;
+    tipo: string;
+    precio: string;
+    descripcion: string;
+  }>;
 };
+
+// Selección + compresión <= 500KB (compat con versiones de expo-image-picker)
+async function pickCompressedDataURI(
+  setResult: (r: { type: "success" | "error"; title: string; msg: string } | null) => void
+): Promise<string | null> {
+  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (permission.status !== "granted") {
+    setResult({
+      type: "error",
+      title: "Permiso denegado",
+      msg: "Necesitas permitir el acceso a la galería para subir imágenes.",
+    });
+    return null;
+  }
+
+  // Compatibilidad: usa MediaType si existe; si no, usa MediaTypeOptions (deprecated)
+  const mediaTypes: any =
+    (ImagePicker as any).MediaType?.Images ??
+    (ImagePicker as any).MediaTypeOptions?.Images ??
+    ImagePicker.MediaTypeOptions.Images;
+
+  const res = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes,
+    quality: 1,
+    base64: false,
+    allowsEditing: false,
+  } as any);
+  if (res.canceled) return null;
+
+  const a = res.assets[0];
+  let width = Math.min(a.width || 1600, 1600);
+  let quality = 0.8;
+
+  for (let i = 0; i < 5; i++) {
+    const r = await manipulateAsync(
+      a.uri,
+      [{ resize: { width } }],
+      { compress: quality, format: SaveFormat.JPEG, base64: true }
+    );
+    const b64 = r.base64 || "";
+    const bytes = Math.ceil((b64.length * 3) / 4);
+    if (bytes <= MAX_IMAGE_BYTES) {
+      return `data:image/jpeg;base64,${b64}`;
+    }
+    width = Math.floor(width * 0.85);
+    quality = Math.max(0.4, quality - 0.12);
+  }
+
+  setResult({
+    type: "error",
+    title: "Imagen demasiado pesada",
+    msg: "No se pudo comprimir por debajo de 500 KB. Elige otra imagen más liviana.",
+  });
+  return null;
+}
 
 export default function RegistroPropietario() {
   const router = useRouter();
 
-  // ----- Estado: propietario + local -----
-  const [form, setForm] = useState({
-    primer_apellido: "",
-    segundo_apellido: "",
-    nombre: "",
+  // Propietario
+  const [prop, setProp] = useState({
+    primerAp: "",
+    segundoAp: "",
+    nombres: "",
     celular: "",
     correo: "",
-    password: "",
-    confirmar_password: "",
-    local_nombre: "",
-    local_direccion: "",
-    local_ciudad: "",
-    gps_url: "",
+    contrasena: "",
+    confirmarContrasena: "",
   });
+  const [tProp, setTProp] = useState<Touched<typeof prop>>({});
 
-  // ----- Errores de campos -----
-  const [errores, setErrores] = useState<Record<string, string>>({});
-  const [imagenesLocal, setImagenesLocal] = useState<string[]>([]);
+  // Local
+  const [local, setLocal] = useState({
+    nombre: "",
+    direccion: "",
+    ciudad: "",
+    gpsUrl: "",
+  });
+  const [tLocal, setTLocal] = useState<Touched<typeof local>>({});
+  const [imgsLocal, setImgsLocal] = useState<string[]>([]);
 
-  // ----- Mesas -----
+  // Mesas
   const [mesas, setMesas] = useState<MesaForm[]>([
-    { nroMesa: "", descripcion: "", tipo_mesa: undefined, precio_hora: "", fotos: [] },
+    { numero: "", tipo: "", precio: "", descripcion: "", fotos: [], touched: {} },
   ]);
 
-  // ----- Modales -----
-  const [confirmCancelVisible, setConfirmCancelVisible] = useState(false);
-  const [result, setResult] = useState<{ visible: boolean; type: "success" | "error"; title: string; message: string }>({
-    visible: false,
-    type: "success",
-    title: "",
-    message: "",
+  // Índice de la mesa cuyo modal de "tipo" está abierto
+  const [modalTipoIdx, setModalTipoIdx] = useState<number | null>(null);
+
+  // Modales
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [result, setResult] = useState<{ type: "success" | "error"; title: string; msg: string } | null>(null);
+
+  // Helpers estado
+  const setPropField = (k: keyof typeof prop, v: string) => setProp({ ...prop, [k]: v });
+  const setPropTouched = (k: keyof typeof prop) => setTProp({ ...tProp, [k]: true });
+  const setLocalField = (k: keyof typeof local, v: string) => setLocal({ ...local, [k]: v });
+  const setLocalTouched = (k: keyof typeof local) => setTLocal({ ...tLocal, [k]: true });
+  const updateMesa = (i: number, patch: Partial<MesaForm>) => {
+    setMesas((prev) => {
+      const copy = [...prev];
+      copy[i] = { ...copy[i], ...patch };
+      return copy;
+    });
+  };
+  const setMesaTouched = (i: number, k: keyof MesaForm["touched"]) => {
+    setMesas((prev) => {
+      const copy = [...prev];
+      copy[i].touched = { ...(copy[i].touched || {}), [k]: true };
+      return copy;
+    });
+  };
+
+  // Validaciones
+  const valProp = {
+    primerAp: prop.primerAp.trim() !== "" && soloLetras.test(prop.primerAp) && empiezaConMayuscula.test(prop.primerAp),
+    segundoAp:
+      prop.segundoAp.trim() === "" ||
+      (soloLetras.test(prop.segundoAp) && empiezaConMayuscula.test(prop.segundoAp)),
+    nombres: prop.nombres.trim() !== "" && soloLetras.test(prop.nombres) && empiezaConMayuscula.test(prop.nombres),
+    correo: correoValido.test(prop.correo.trim()),
+    celular: prop.celular.trim() === "" || celularValido.test(prop.celular.trim()),
+    contrasena: passRegex.test(prop.contrasena),
+    confirmarContrasena: prop.confirmarContrasena === prop.contrasena && prop.contrasena.length > 0,
+  };
+
+  const valLocal = {
+    nombre: local.nombre.trim().length >= 2,
+    direccion: local.direccion.trim().length >= 3,
+    ciudad:
+      local.ciudad.trim() === "" ||
+      (soloLetras.test(local.ciudad) && empiezaConMayuscula.test(local.ciudad)),
+    gpsUrl: urlGpsValida.test(local.gpsUrl.trim()),
+  };
+
+  const valMesa = (m: MesaForm) => ({
+    numero: !!m.numero && /^\d+$/.test(m.numero) && parseInt(m.numero, 10) >= 1,
+    tipo: m.tipo !== "",
+    precio: !!m.precio && decimalValido.test(m.precio) && parseFloat(m.precio) >= 0,
   });
-  const [enviando, setEnviando] = useState(false);
 
-  // ----- Validaciones -----
-  const soloLetras = /^[A-Za-zÁÉÍÓÚáéíóúñÑ\s]+$/;
-  const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const celularValido = /^[0-9]{6,20}$/; // opcional; si hay valor debe cumplir
-  const contrasenaValida = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*_.])[A-Za-z\d!@#$%^&*_.]{6,}$/;
-
-  // URL con coordenadas (acepta gmaps u otros con lat,lon dentro)
-  const gpsUrlValida = (url: string) => {
-    try {
-      const u = new URL(url);
-      const withComma = url.replaceAll("%2C", ",");
-      const hasCoords = /-?\d{1,2}\.\d{3,},\s*-?\d{1,3}\.\d{3,}/.test(withComma);
-      return ["http:", "https:"].includes(u.protocol) && hasCoords;
-    } catch {
-      return false;
-    }
-  };
-
-  const actualizarCampo = (campo: keyof typeof form, valor: string) => {
-    setForm((f) => ({ ...f, [campo]: valor }));
-    validarCampo(campo, valor);
-  };
-
-  const validarCampo = (campo: keyof typeof form, valor: string) => {
-    let error = "";
-
-    if (campo === "nombre" || campo === "primer_apellido") {
-      if (!valor.trim()) error = "Este campo es obligatorio.";
-      else if (!soloLetras.test(valor.trim())) error = "Solo letras permitidas.";
-    }
-
-    if (campo === "segundo_apellido") {
-      if (valor.trim() && !soloLetras.test(valor.trim())) error = "Solo letras permitidas.";
-    }
-
-    if (campo === "correo") {
-      if (!correoValido.test(valor.trim())) error = "Correo no válido (ej: usuario@correo.com).";
-    }
-
-    if (campo === "password") {
-      if (!contrasenaValida.test(valor)) {
-        error = "Mín. 6 caracteres, 1 mayúscula, 1 número y 1 símbolo.";
-      }
-    }
-
-    if (campo === "confirmar_password") {
-      if (valor !== form.password) error = "Las contraseñas no coinciden.";
-    }
-
-    if (campo === "celular") {
-      if (valor.trim() && !celularValido.test(valor.trim())) {
-        error = "Celular entre 6 y 20 dígitos.";
-      }
-    }
-
-    if (campo === "local_nombre") {
-      if (!valor.trim()) error = "El nombre del local es obligatorio.";
-    }
-
-    if (campo === "local_direccion") {
-      if (!valor.trim() || valor.trim().length < 3) error = "Dirección obligatoria (mín. 3).";
-    }
-
-    if (campo === "gps_url") {
-      if (!gpsUrlValida(valor.trim())) error = "URL con coordenadas inválidas.";
-    }
-
-    setErrores((prev) => ({ ...prev, [campo]: error }));
-  };
-
-  const validarMesa = (m: MesaForm) => {
-    let e = "";
-    if (!m.nroMesa.trim() || !/^\d+$/.test(m.nroMesa) || Number(m.nroMesa) < 1) {
-      e = "Nro. de mesa debe ser entero ≥ 1.";
-    } else if (!m.tipo_mesa) {
-      e = "Selecciona un tipo de mesa.";
-    } else if (m.precio_hora.trim() === "" || isNaN(Number(m.precio_hora)) || Number(m.precio_hora) < 0) {
-      e = "Precio por hora debe ser un número ≥ 0.";
-    }
-    return e;
-  };
-
-  // Duplicados nroMesa (frontend)
-  const hayDuplicadosMesa = useMemo(() => {
-    const nums = mesas.map((m) => m.nroMesa.trim()).filter(Boolean);
-    return nums.some((n, idx) => nums.indexOf(n) !== idx);
-  }, [mesas]);
-
-  const formularioValido = useMemo(() => {
-    const camposNecesariosOK =
-      form.nombre.trim() &&
-      form.primer_apellido.trim() &&
-      correoValido.test(form.correo.trim()) &&
-      contrasenaValida.test(form.password) &&
-      form.confirmar_password === form.password &&
-      form.local_nombre.trim().length >= 1 &&
-      form.local_direccion.trim().length >= 3 &&
-      gpsUrlValida(form.gps_url.trim());
-
-    const celularOK = !form.celular.trim() || celularValido.test(form.celular.trim());
-    const mesasOK = mesas.length >= 1 && mesas.every((m) => validarMesa(m) === "");
-    const sinDuplicados = !hayDuplicadosMesa;
-
-    return Boolean(camposNecesariosOK && celularOK && mesasOK && sinDuplicados);
-  }, [form, mesas, hayDuplicadosMesa]);
-
-  // ¿Hay datos escritos? (para confirmar Cancelar)
-  const isDirty = useMemo(() => {
-    const campos = Object.values(form).some((v) => String(v).trim() !== "");
-    const locImgs = imagenesLocal.length > 0;
-    const ms = mesas.some(
-      (m) =>
-        m.nroMesa.trim() ||
-        m.descripcion.trim() ||
-        m.tipo_mesa ||
-        m.precio_hora.trim() ||
-        m.fotos.length > 0
-    );
-    return campos || locImgs || ms;
-  }, [form, imagenesLocal, mesas]);
-
-  // ----- Imagenes -----
-  const pickImage = async (dest: "local" | { mesaIndex: number }) => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
+  const formValido =
+    Object.values(valProp).every(Boolean) &&
+    Object.values(valLocal).every(Boolean) &&
+    mesas.length > 0 &&
+    mesas.every((m) => {
+      const v = valMesa(m);
+      return v.numero && v.tipo && v.precio;
     });
 
-    if (!result.canceled) {
-      const uri = result.assets[0].uri;
-      if (!uri) return;
-
-      if (dest === "local") {
-        setImagenesLocal((arr) => [...arr, uri]);
-      } else {
-        const nuevas = [...mesas];
-        nuevas[dest.mesaIndex].fotos.push(uri);
-        setMesas(nuevas);
-      }
-    }
-  };
-
-  const removeLocalImage = (i: number) => {
-    setImagenesLocal((arr) => arr.filter((_, idx) => idx !== i));
-  };
-  const removeMesaImage = (mesaIndex: number, i: number) => {
-    const nuevas = [...mesas];
-    nuevas[mesaIndex].fotos = nuevas[mesaIndex].fotos.filter((_, idx) => idx !== i);
-    setMesas(nuevas);
-  };
-
-  // Convertir a data URI para la API
-  const toDataUri = async (uri: string) => {
-    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
-    return `data:image/jpeg;base64,${base64}`;
-  };
-
-  // Sanitizador de precio: solo dígitos y un punto, máx 2 decimales
-  const sanitizeMoney = (txt: string) => {
-    let s = txt.replace(/[^0-9.]/g, "");
-    const firstDot = s.indexOf(".");
-    if (firstDot !== -1) {
-      const int = s.slice(0, firstDot).replace(/^0+(?=\d)/, "");
-      const dec = s.slice(firstDot + 1).replace(/\./g, "").slice(0, 2);
-      s = int + "." + dec;
-    } else {
-      s = s.replace(/^0+(?=\d)/, "");
-    }
-    return s;
-  };
-
-  // ----- Mesas: agregar / quitar / actualizar -----
-  const agregarMesa = () =>
-    setMesas((ms) => [...ms, { nroMesa: "", descripcion: "", tipo_mesa: undefined, precio_hora: "", fotos: [] }]);
-
-  const quitarMesa = (index: number) => {
-    if (mesas.length === 1) {
-      Alert.alert("Aviso", "Debe haber al menos una mesa.");
-      return;
-    }
-    setMesas((ms) => ms.filter((_, i) => i !== index));
-  };
-
-  const setMesa = (index: number, patch: Partial<MesaForm>) => {
-    setMesas((ms) =>
-      ms.map((m, i) => {
-        if (i !== index) return m;
-        const next = { ...m, ...patch };
-        next.error = validarMesa(next);
-        return next;
-      })
+  const hayDatos =
+    Object.values(prop).some((v) => v.trim() !== "") ||
+    Object.values(local).some((v) => v.trim() !== "") ||
+    imgsLocal.length > 0 ||
+    mesas.some(
+      (m) => m.numero || m.tipo || m.precio || m.descripcion || m.fotos.length
     );
+
+  // Imágenes
+  const pickLocalImage = async () => {
+    const dataUri = await pickCompressedDataURI(setResult);
+    if (dataUri) setImgsLocal((arr) => [...arr, dataUri]);
+  };
+  const removeLocalImage = (idx: number) => {
+    setImgsLocal((arr) => arr.filter((_, i) => i !== idx));
   };
 
-  // ----- Enviar -----
-  const onSubmit = async () => {
-    if (!formularioValido) {
-      // fuerza mensajes de error en cada campo
-      Object.entries(form).forEach(([k, v]) => validarCampo(k as keyof typeof form, String(v)));
-      setMesas((ms) => ms.map((m) => ({ ...m, error: validarMesa(m) })));
-      if (hayDuplicadosMesa) {
-        Alert.alert("Revisa las mesas", "Hay números de mesa duplicados.");
-      }
+  const pickMesaImage = async (idx: number) => {
+    const dataUri = await pickCompressedDataURI(setResult);
+    if (!dataUri) return;
+    setMesas((prev) => {
+      const copy = [...prev];
+      copy[idx].fotos.push(dataUri);
+      return copy;
+    });
+  };
+  const removeMesaImage = (idxMesa: number, idxFoto: number) => {
+    setMesas((prev) => {
+      const copy = [...prev];
+      copy[idxMesa].fotos = copy[idxMesa].fotos.filter((_, i) => i !== idxFoto);
+      return copy;
+    });
+  };
+
+  // Abrir / seleccionar tipo (usa setState funcional para evitar valores obsoletos)
+  const openTipo = (idx: number) => setModalTipoIdx(idx);
+  const selectTipo = (tipo: TipoMesa) => {
+    setMesas((prev) => {
+      if (modalTipoIdx === null) return prev;
+      const copy = [...prev];
+      if (!copy[modalTipoIdx]) return prev;
+      copy[modalTipoIdx] = { ...copy[modalTipoIdx], tipo };
+      return copy;
+    });
+    if (modalTipoIdx !== null) setMesaTouched(modalTipoIdx, "tipo");
+    setModalTipoIdx(null);
+  };
+
+  // Envío
+  const submit = async () => {
+    const marcarTodo = () => {
+      setTProp({
+        primerAp: true,
+        segundoAp: true,
+        nombres: true,
+        correo: true,
+        celular: true,
+        contrasena: true,
+        confirmarContrasena: true,
+      });
+      setTLocal({ nombre: true, direccion: true, ciudad: true, gpsUrl: true });
+      setMesas((arr) =>
+        arr.map((m) => ({
+          ...m,
+          touched: { numero: true, tipo: true, precio: true, descripcion: true },
+        }))
+      );
+    };
+
+    if (!formValido) {
+      marcarTodo();
+      setResult({
+        type: "error",
+        title: "Faltan datos",
+        msg: "Revisa los campos marcados en rojo.",
+      });
       return;
     }
 
-    setEnviando(true);
+    const payload = {
+      nombre: prop.nombres.trim(),
+      primer_apellido: prop.primerAp.trim(),
+      segundo_apellido: prop.segundoAp.trim() || null,
+      correo: prop.correo.trim(),
+      password: prop.contrasena,
+      confirmar_password: prop.confirmarContrasena,
+      celular: prop.celular.trim() || null,
+      local: {
+        nombre: local.nombre.trim(),
+        direccion: local.direccion.trim(),
+        ciudad: local.ciudad.trim() || null,
+        gps_url: local.gpsUrl.trim(),
+        imagenes: imgsLocal.map((b64) => ({ base64: b64 })),
+      },
+      mesas: mesas.map((m) => ({
+        numero_mesa: parseInt(m.numero, 10),
+        tipo_mesa: m.tipo as TipoMesa,
+        precio_hora: parseFloat(m.precio),
+        descripcion: m.descripcion.trim() || null,
+        imagenes: m.fotos.map((b64) => ({ base64: b64 })),
+      })),
+    };
+
     try {
-      const localImgs = await Promise.all(
-        imagenesLocal.map((uri) => toDataUri(uri).then((b64) => ({ base64: b64 })))
-      );
-      const mesasImgs = await Promise.all(
-        mesas.map(async (m) => {
-          const arr = await Promise.all(m.fotos.map((uri) => toDataUri(uri).then((b64) => ({ base64: b64 }))));
-          return arr;
-        })
-      );
-
-      const payload = {
-        nombre: form.nombre.trim(),
-        primer_apellido: form.primer_apellido.trim(),
-        segundo_apellido: form.segundo_apellido.trim() || null,
-        correo: form.correo.trim(),
-        password: form.password,
-        confirmar_password: form.confirmar_password,
-        celular: form.celular.trim() || null,
-        local: {
-          nombre: form.local_nombre.trim(),
-          direccion: form.local_direccion.trim(),
-          ciudad: form.local_ciudad.trim() || undefined,
-          gps_url: form.gps_url.trim(),
-          imagenes: localImgs.length ? localImgs : undefined,
-        },
-        mesas: mesas.map((m, i) => ({
-          numero_mesa: Number(m.nroMesa),
-          tipo_mesa: m.tipo_mesa as TipoMesa,
-          precio_hora: Number(m.precio_hora || 0),
-          descripcion: m.descripcion.trim() || null,
-          imagenes: mesasImgs[i].length ? mesasImgs[i] : undefined,
-        })),
-      };
-
-      const resp = await api("/registro/propietario", { method: "POST", body: payload });
-
-      const { token, user } = resp;
-      await saveAuth(token, user);
-
+      setProcessing(true);
+      const res = await api("/registro/propietario", { method: "POST", body: payload });
+      await saveAuth(res.token, res.user);
       setResult({
-        visible: true,
         type: "success",
-        title: "Cuenta creada",
-        message: "Registro de propietario completado. Iniciaste sesión automáticamente.",
+        title: "Registro completo",
+        msg: "Tu cuenta de propietario se creó correctamente.",
       });
     } catch (e: any) {
       setResult({
-        visible: true,
         type: "error",
         title: "No se pudo registrar",
-        message: e?.message || "Intenta nuevamente.",
+        msg: String(e?.message || "Inténtalo nuevamente."),
       });
     } finally {
-      setEnviando(false);
+      setProcessing(false);
     }
   };
 
-  const cerrarResultado = async () => {
-    setResult((r) => ({ ...r, visible: false }));
-    if (result.type === "success") {
+  const handleSubmitPress = () => {
+    if (!formValido) {
+      setResult({
+        type: "error",
+        title: "Datos incompletos",
+        msg: "Completa todos los campos obligatorios.",
+      });
+      return;
+    }
+    setShowSubmitConfirm(true);
+  };
+
+  const cerrarResult = () => {
+    if (result?.type === "success") {
+      setResult(null);
       router.replace("/(principal)");
+      return;
     }
+    setResult(null);
   };
 
-  // ----- Cancelar -----
-  const onCancel = () => {
-    if (isDirty) {
-      setConfirmCancelVisible(true);
-    } else {
-      router.replace("/autenticacion");
-    }
-  };
-
-  const confirmarCancel = () => {
-    setConfirmCancelVisible(false);
-    router.replace("/autenticacion");
+  const cancelar = () => {
+    if (!hayDatos) router.back();
+    else setShowCancelConfirm(true);
   };
 
   return (
@@ -370,180 +376,258 @@ export default function RegistroPropietario() {
       style={{ flex: 1, backgroundColor: Colores.fondo }}
       behavior={Platform.select({ ios: "padding", android: undefined })}
     >
-      <ScrollView contentContainerStyle={estilos.scroll}>
+      <ScrollView contentContainerStyle={estilos.scroll} keyboardShouldPersistTaps="handled">
         <View style={estilos.contenedor}>
-          <Text style={estilos.titulo}>Registrarse como Propietario</Text>
+          <Text style={estilos.titulo}>Registro de Propietario</Text>
 
-          {/* DATOS DEL PROPIETARIO */}
-          <Text style={estilos.subtitulo}>Datos del Propietario</Text>
+          {/* PROPIETARIO */}
+          <Text style={estilos.subtitulo}>Datos del propietario</Text>
 
-          <Campo
-            label="Nombres *"
-            value={form.nombre}
-            onChangeText={(v) => actualizarCampo("nombre", v)}
-            error={errores.nombre}
+          <Text style={estilos.label}>Primer apellido *</Text>
+          <TextInput
+            style={[estilos.campo, tProp.primerAp && !valProp.primerAp && estilos.inputError]}
+            placeholder="Escribe tu primer apellido"
+            autoCapitalize="words"
+            value={prop.primerAp}
+            onChangeText={(v) => setPropField("primerAp", v)}
+            onBlur={() => setPropTouched("primerAp")}
           />
-          <Campo
-            label="Primer Apellido *"
-            value={form.primer_apellido}
-            onChangeText={(v) => actualizarCampo("primer_apellido", v)}
-            error={errores.primer_apellido}
+          {tProp.primerAp && !valProp.primerAp && (
+            <Text style={estilos.textoError}>Solo letras. Debe iniciar con mayúscula.</Text>
+          )}
+
+          <Text style={estilos.label}>Segundo apellido (opcional)</Text>
+          <TextInput
+            style={[estilos.campo, tProp.segundoAp && !valProp.segundoAp && estilos.inputError]}
+            placeholder="Escribe tu segundo apellido"
+            autoCapitalize="words"
+            value={prop.segundoAp}
+            onChangeText={(v) => setPropField("segundoAp", v)}
+            onBlur={() => setPropTouched("segundoAp")}
           />
-          <Campo
-            label="Segundo Apellido (opcional)"
-            value={form.segundo_apellido}
-            onChangeText={(v) => actualizarCampo("segundo_apellido", v)}
-            error={errores.segundo_apellido}
+          {tProp.segundoAp && !valProp.segundoAp && (
+            <Text style={estilos.textoError}>Solo letras. Debe iniciar con mayúscula.</Text>
+          )}
+
+          <Text style={estilos.label}>Nombres *</Text>
+          <TextInput
+            style={[estilos.campo, tProp.nombres && !valProp.nombres && estilos.inputError]}
+            placeholder="Escribe tus nombres"
+            autoCapitalize="words"
+            value={prop.nombres}
+            onChangeText={(v) => setPropField("nombres", v)}
+            onBlur={() => setPropTouched("nombres")}
           />
-          <Campo
-            label="Celular (opcional)"
-            keyboardType="phone-pad"
-            value={form.celular}
-            onChangeText={(v) => actualizarCampo("celular", v)}
-            error={errores.celular}
+          {tProp.nombres && !valProp.nombres && (
+            <Text style={estilos.textoError}>Solo letras. Debe iniciar con mayúscula.</Text>
+          )}
+
+          <Text style={estilos.label}>Celular (opcional)</Text>
+          <TextInput
+            style={[estilos.campo, tProp.celular && !valProp.celular && estilos.inputError]}
+            placeholder="Escribe tu número de celular"
+            keyboardType="number-pad"
+            value={prop.celular}
+            onChangeText={(v) => setPropField("celular", v.replace(/[^0-9]/g, ""))}
+            onBlur={() => setPropTouched("celular")}
           />
-          <Campo
-            label="Correo electrónico *"
+          {tProp.celular && !valProp.celular && (
+            <Text style={estilos.textoError}>Debe tener entre 6 y 20 dígitos.</Text>
+          )}
+
+          <Text style={estilos.label}>Correo electrónico *</Text>
+          <TextInput
+            style={[estilos.campo, tProp.correo && !valProp.correo && estilos.inputError]}
+            placeholder="Escribe tu correo electrónico"
             keyboardType="email-address"
             autoCapitalize="none"
-            value={form.correo}
-            onChangeText={(v) => actualizarCampo("correo", v)}
-            error={errores.correo}
+            value={prop.correo}
+            onChangeText={(v) => setPropField("correo", v)}
+            onBlur={() => setPropTouched("correo")}
           />
+          {tProp.correo && !valProp.correo && <Text style={estilos.textoError}>Correo no válido.</Text>}
 
-          <Campo
-            label="Contraseña *"
+          <Text style={estilos.label}>Contraseña *</Text>
+          <TextInput
+            style={[estilos.campo, tProp.contrasena && !valProp.contrasena && estilos.inputError]}
+            placeholder="Mín. 6 caracteres, 1 mayúscula, 1 número y 1 símbolo"
             secureTextEntry
-            value={form.password}
-            onChangeText={(v) => actualizarCampo("password", v)}
-            error={errores.password}
+            value={prop.contrasena}
+            onChangeText={(v) => setPropField("contrasena", v)}
+            onBlur={() => setPropTouched("contrasena")}
           />
-          <Campo
-            label="Confirmar contraseña *"
-            secureTextEntry
-            value={form.confirmar_password}
-            onChangeText={(v) => actualizarCampo("confirmar_password", v)}
-            error={errores.confirmar_password}
-          />
-          <Text style={estilos.hint}>
-            Requisitos: 6+ caracteres, incluye 1 mayúscula, 1 número y 1 símbolo.
-          </Text>
+          {tProp.contrasena && !valProp.contrasena && (
+            <Text style={estilos.textoError}>No cumple los requisitos de seguridad.</Text>
+          )}
 
-          {/* DATOS DEL LOCAL */}
-          <Text style={estilos.subtitulo}>Datos del Local</Text>
-          <Campo
-            label="Nombre del local *"
-            value={form.local_nombre}
-            onChangeText={(v) => actualizarCampo("local_nombre", v)}
-            error={errores.local_nombre}
+          <Text style={estilos.label}>Confirmar contraseña *</Text>
+          <TextInput
+            style={[
+              estilos.campo,
+              tProp.confirmarContrasena && !valProp.confirmarContrasena && estilos.inputError,
+            ]}
+            placeholder="Repite tu contraseña"
+            secureTextEntry
+            value={prop.confirmarContrasena}
+            onChangeText={(v) => setPropField("confirmarContrasena", v)}
+            onBlur={() => setPropTouched("confirmarContrasena")}
           />
-          <Campo
-            label="Dirección *"
-            value={form.local_direccion}
-            onChangeText={(v) => actualizarCampo("local_direccion", v)}
-            error={errores.local_direccion}
+          {tProp.confirmarContrasena && !valProp.confirmarContrasena && (
+            <Text style={estilos.textoError}>Las contraseñas no coinciden.</Text>
+          )}
+
+          {/* LOCAL */}
+          <Text style={estilos.subtitulo}>Datos del local</Text>
+
+          <Text style={estilos.label}>Nombre del local *</Text>
+          <TextInput
+            style={[estilos.campo, tLocal.nombre && !valLocal.nombre && estilos.inputError]}
+            placeholder="Escribe el nombre del local"
+            autoCapitalize="words"
+            value={local.nombre}
+            onChangeText={(v) => setLocalField("nombre", v)}
+            onBlur={() => setLocalTouched("nombre")}
           />
-          <Campo
-            label="Ciudad (opcional)"
-            value={form.local_ciudad}
-            onChangeText={(v) => actualizarCampo("local_ciudad", v)}
-            error={errores.local_ciudad}
+          {tLocal.nombre && !valLocal.nombre && <Text style={estilos.textoError}>Mínimo 2 caracteres.</Text>}
+
+          <Text style={estilos.label}>Dirección *</Text>
+          <TextInput
+            style={[estilos.campo, tLocal.direccion && !valLocal.direccion && estilos.inputError]}
+            placeholder="Escribe la dirección"
+            value={local.direccion}
+            onChangeText={(v) => setLocalField("direccion", v)}
+            onBlur={() => setLocalTouched("direccion")}
           />
-          <Campo
-            label="URL con coordenadas (Google Maps) *"
-            placeholder="https://maps.google.com/?q=-17.3895,-66.1567"
+          {tLocal.direccion && !valLocal.direccion && <Text style={estilos.textoError}>Mínimo 3 caracteres.</Text>}
+
+          <Text style={estilos.label}>Ciudad (opcional)</Text>
+          <TextInput
+            style={[estilos.campo, tLocal.ciudad && !valLocal.ciudad && estilos.inputError]}
+            placeholder="Escribe la ciudad"
+            autoCapitalize="words"
+            value={local.ciudad}
+            onChangeText={(v) => setLocalField("ciudad", v)}
+            onBlur={() => setLocalTouched("ciudad")}
+          />
+          {tLocal.ciudad && !valLocal.ciudad && (
+            <Text style={estilos.textoError}>Solo letras. Debe iniciar con mayúscula.</Text>
+          )}
+
+          <Text style={estilos.label}>URL de Google Maps *</Text>
+          <TextInput
+            style={[estilos.campo, tLocal.gpsUrl && !valLocal.gpsUrl && estilos.inputError]}
+            placeholder="Pega aquí el enlace de Google Maps del local"
             autoCapitalize="none"
-            value={form.gps_url}
-            onChangeText={(v) => actualizarCampo("gps_url", v)}
-            error={errores.gps_url}
+            value={local.gpsUrl}
+            onChangeText={(v) => setLocalField("gpsUrl", v)}
+            onBlur={() => setLocalTouched("gpsUrl")}
           />
+          {tLocal.gpsUrl && !valLocal.gpsUrl && (
+            <Text style={estilos.textoError}>Debe ser una URL válida (http/https).</Text>
+          )}
 
-          {/* IMÁGENES DEL LOCAL */}
-          <Text style={estilos.textoAzul}>Imágenes del Local (opcional)</Text>
+          <Text style={estilos.textoAzul}>Imágenes del local (opcional)</Text>
           <View style={estilos.filaImagenes}>
-            {imagenesLocal.map((img, i) => (
-              <View key={`${img}-${i}`} style={{ position: "relative" }}>
+            {imgsLocal.map((img, i) => (
+              <View key={`loc-${i}`} style={estilos.imgWrap}>
                 <Image source={{ uri: img }} style={estilos.imgPreview} />
-                <TouchableOpacity style={estilos.btnDel} onPress={() => removeLocalImage(i)}>
-                  <Text style={{ color: "#fff", fontWeight: "800" }}>×</Text>
+                <TouchableOpacity style={estilos.closeBadge} onPress={() => removeLocalImage(i)}>
+                  <Text style={estilos.closeText}>×</Text>
                 </TouchableOpacity>
               </View>
             ))}
-            <TouchableOpacity style={estilos.botonImagen} onPress={() => pickImage("local")}>
+            <TouchableOpacity style={estilos.botonImagen} onPress={pickLocalImage}>
               <Text style={estilos.textoMas}>＋</Text>
             </TouchableOpacity>
           </View>
 
           {/* MESAS */}
           <Text style={estilos.subtitulo}>Mesas (mínimo 1)</Text>
-          <TouchableOpacity style={estilos.botonCrearMesa} onPress={agregarMesa}>
+          <TouchableOpacity
+            style={estilos.botonCrearMesa}
+            onPress={() =>
+              setMesas((arr) => [
+                ...arr,
+                { numero: "", tipo: "", precio: "", descripcion: "", fotos: [], touched: {} },
+              ])
+            }
+          >
             <Text style={estilos.textoAzul}>＋ Agregar mesa</Text>
           </TouchableOpacity>
 
-          {hayDuplicadosMesa && (
-            <Text style={[estilos.textoError, { marginBottom: 8 }]}>
-              Hay números de mesa duplicados. Corrige antes de continuar.
-            </Text>
-          )}
-
-          {mesas.map((mesa, index) => {
-            // ❗️Mostrar error de precio SOLO si el usuario ya escribió algo:
-            const precioTocadoInvalido =
-              mesa.precio_hora.length > 0 &&
-              (isNaN(Number(mesa.precio_hora)) || Number(mesa.precio_hora) < 0);
-
+          {mesas.map((m, idx) => {
+            const v = valMesa(m);
             return (
-              <View key={index} style={estilos.cardMesa}>
+              <View key={idx} style={estilos.cardMesa}>
                 <View style={estilos.headerMesa}>
-                  <Text style={estilos.textoNegrita}>Mesa {index + 1}</Text>
-                  <TouchableOpacity onPress={() => quitarMesa(index)}>
-                    <Text style={estilos.textoRojo}>🗑️ Quitar</Text>
-                  </TouchableOpacity>
+                  <Text style={estilos.textoNegrita}>Mesa {idx + 1}</Text>
+                  {mesas.length > 1 && (
+                    <TouchableOpacity onPress={() => setMesas(mesas.filter((_, i) => i !== idx))}>
+                      <Text style={estilos.textoRojo}>🗑️ Quitar</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
 
-                <Campo
-                  label="Número de mesa *"
+                <Text style={estilos.label}>Número de mesa *</Text>
+                <TextInput
+                  style={[estilos.campo, m.touched.numero && !v.numero && estilos.inputError]}
+                  placeholder="Escribe el número de mesa"
                   keyboardType="number-pad"
-                  value={mesa.nroMesa}
-                  onChangeText={(t) => setMesa(index, { nroMesa: t.replace(/\D/g, "") })}
+                  value={m.numero}
+                  onChangeText={(t) => updateMesa(idx, { numero: t.replace(/[^0-9]/g, "") })}
+                  onBlur={() => setMesaTouched(idx, "numero")}
+                />
+                {m.touched.numero && !v.numero && (
+                  <Text style={estilos.textoError}>Nro. de mesa debe ser entero ≥ 1.</Text>
+                )}
+
+                <Text style={estilos.label}>Tipo de mesa *</Text>
+                <TouchableOpacity
+                  style={[estilos.campo, estilos.select, m.touched.tipo && !v.tipo && estilos.inputError]}
+                  onPress={() => openTipo(idx)}
+                  activeOpacity={0.9}
+                >
+                  <Text style={{ color: m.tipo ? "#111" : "#888" }}>
+                    {m.tipo || "Selecciona un tipo de mesa"}
+                  </Text>
+                </TouchableOpacity>
+                {m.touched.tipo && !v.tipo && (
+                  <Text style={estilos.textoError}>Selecciona un tipo de mesa.</Text>
+                )}
+
+                <Text style={estilos.label}>Precio por hora (Bs) *</Text>
+                <TextInput
+                  style={[estilos.campo, m.touched.precio && !v.precio && estilos.inputError]}
+                  placeholder="Escribe el precio por hora"
+                  keyboardType={Platform.OS === "ios" ? "decimal-pad" : "numeric"}
+                  value={m.precio}
+                  onChangeText={(t) => updateMesa(idx, { precio: normalizeDecimal(t) })}
+                  onBlur={() => setMesaTouched(idx, "precio")}
+                />
+                {m.touched.precio && !v.precio && (
+                  <Text style={estilos.textoError}>Precio por hora debe ser un número ≥ 0.</Text>
+                )}
+
+                <Text style={estilos.label}>Descripción (opcional)</Text>
+                <TextInput
+                  style={estilos.campo}
+                  placeholder="Escribe una breve descripción"
+                  value={m.descripcion}
+                  onChangeText={(t) => updateMesa(idx, { descripcion: t })}
+                  onBlur={() => setMesaTouched(idx, "descripcion")}
                 />
 
-                {/* Select de tipo_mesa */}
-                <Select
-                  label="Tipo de mesa *"
-                  value={mesa.tipo_mesa}
-                  options={TIPOS_MESA}
-                  onChange={(v) => setMesa(index, { tipo_mesa: v })}
-                />
-
-                <Campo
-                  label="Precio por hora (Bs) *"
-                  keyboardType="decimal-pad"
-                  value={mesa.precio_hora}
-                  onChangeText={(t) => setMesa(index, { precio_hora: sanitizeMoney(t) })}
-                  error={precioTocadoInvalido ? "Precio por hora debe ser un número ≥ 0." : undefined}
-                />
-
-                <Campo
-                  label="Descripción (opcional)"
-                  value={mesa.descripcion}
-                  onChangeText={(t) => setMesa(index, { descripcion: t })}
-                />
-
-                {/* Mensaje de bloque si la mesa es inválida (aparece cuando el usuario interactúa o al intentar enviar) */}
-                {mesa.error ? <Text style={estilos.textoError}>{mesa.error}</Text> : null}
-
-                <Text style={[estilos.textoAzul, { marginTop: 8 }]}>Fotos de la mesa (opcional)</Text>
+                <Text style={estilos.textoAzul}>Fotos de la mesa (opcional)</Text>
                 <View style={estilos.filaImagenes}>
-                  {mesa.fotos.map((f, i) => (
-                    <View key={`${f}-${i}`} style={{ position: "relative" }}>
+                  {m.fotos.map((f, i) => (
+                    <View key={`mesa-${idx}-${i}`} style={estilos.imgWrap}>
                       <Image source={{ uri: f }} style={estilos.imgPreview} />
-                      <TouchableOpacity style={estilos.btnDel} onPress={() => removeMesaImage(index, i)}>
-                        <Text style={{ color: "#fff", fontWeight: "800" }}>×</Text>
+                      <TouchableOpacity style={estilos.closeBadge} onPress={() => removeMesaImage(idx, i)}>
+                        <Text style={estilos.closeText}>×</Text>
                       </TouchableOpacity>
                     </View>
                   ))}
-                  <TouchableOpacity style={estilos.botonImagen} onPress={() => pickImage({ mesaIndex: index })}>
+                  <TouchableOpacity style={estilos.botonImagen} onPress={() => pickMesaImage(idx)}>
                     <Text style={estilos.textoMas}>＋</Text>
                   </TouchableOpacity>
                 </View>
@@ -551,141 +635,104 @@ export default function RegistroPropietario() {
             );
           })}
 
-          {/* Botones */}
-          <View style={{ gap: 10, marginTop: 8 }}>
-            <TouchableOpacity
-              style={[
-                estilos.botonRegistrar,
-                { backgroundColor: formularioValido && !enviando ? Colores.primario : "#A0C4FF" },
-              ]}
-              disabled={!formularioValido || enviando}
-              onPress={onSubmit}
-            >
-              <Text style={estilos.textoLleno}>{enviando ? "ENVIANDO..." : "REGISTRARSE"}</Text>
-            </TouchableOpacity>
+          {/* BOTONES */}
+          <TouchableOpacity
+            style={[estilos.botonRegistrar, { backgroundColor: formValido ? Colores.primario : "#A0C4FF" }]}
+            disabled={!formValido}
+            onPress={handleSubmitPress}
+          >
+            <Text style={estilos.textoLleno}>REGISTRARSE</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[estilos.botonRegistrar, { backgroundColor: "#fff", borderWidth: 1, borderColor: Colores.borde }]}
-              onPress={onCancel}
-            >
-              <Text style={[estilos.textoLleno, { color: "#333" }]}>CANCELAR</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity style={estilos.botonCancelar} onPress={cancelar}>
+            <Text style={estilos.textoCancelar}>CANCELAR</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
-      {/* Confirmar Cancelar */}
+      {/* MODAL – seleccionar tipo de mesa */}
+      <Modal visible={modalTipoIdx !== null} transparent animationType="fade">
+        <View style={estilos.overlay}>
+          {/* Fondo clickable para cerrar */}
+          <Pressable style={estilos.backdrop} onPress={() => setModalTipoIdx(null)} />
+          {/* Tarjeta del modal */}
+          <View style={estilos.modalCard}>
+            <Text style={estilos.modalTitle}>Selecciona un tipo de mesa</Text>
+            {TIPOS.map((t) => (
+              <TouchableOpacity key={t} style={estilos.modalItem} onPress={() => selectTipo(t)}>
+                <Text style={{ fontWeight: "600" }}>
+                  {t}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={[estilos.modalItem, { alignItems: "center" }]}
+              onPress={() => setModalTipoIdx(null)}
+            >
+              <Text style={{ color: "#666" }}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Confirmar cancelar */}
       <ConfirmModal
-        visible={confirmCancelVisible}
-        title="¿Cancelar registro?"
-        message="Perderás los datos ingresados. ¿Deseas salir?"
-        onCancel={() => setConfirmCancelVisible(false)}
-        onConfirm={confirmarCancel}
+        visible={showCancelConfirm}
+        title="Cancelar registro"
+        message="¿Seguro que deseas cancelar? Perderás los datos ingresados."
+        cancelText="Seguir editando"
         confirmText="Sí, salir"
-        cancelText="Seguir aquí"
+        onCancel={() => setShowCancelConfirm(false)}
+        onConfirm={() => {
+          setShowCancelConfirm(false);
+          router.back();
+        }}
       />
+
+      {/* Confirmar enviar */}
+      <ConfirmModal
+        visible={showSubmitConfirm}
+        title="Confirmar datos"
+        message="¿Estás seguro de registrar esta información?"
+        cancelText="Revisar"
+        confirmText="Sí, registrar"
+        onCancel={() => setShowSubmitConfirm(false)}
+        onConfirm={() => {
+          setShowSubmitConfirm(false);
+          submit();
+        }}
+      />
+
+      {/* Registrando… */}
+      <View
+        pointerEvents={processing ? "auto" : "none"}
+        style={[estilos.loadingWrap, { display: processing ? "flex" : "none" }]}
+      >
+        <View style={estilos.loadingCard}>
+          <ActivityIndicator size="large" />
+          <Text style={{ marginTop: 10, fontWeight: "700" }}>Registrando…</Text>
+        </View>
+      </View>
 
       {/* Resultado */}
       <ResultModal
-        visible={result.visible}
-        type={result.type}
-        title={result.title}
-        message={result.message}
-        onClose={cerrarResultado}
-        buttonText="Aceptar"
+        visible={!!result}
+        type={result?.type === "success" ? "success" : "error"}
+        title={result?.title || ""}
+        message={result?.msg || ""}
+        onClose={cerrarResult}
       />
     </KeyboardAvoidingView>
   );
 }
 
-/** ---------- Componentes UI simples ---------- */
-function Campo({
-  label,
-  error,
-  ...rest
-}: {
-  label: string;
-  error?: string;
-} & React.ComponentProps<typeof TextInput>) {
-  return (
-    <View style={{ marginBottom: 10 }}>
-      <Text style={estilos.label}>{label}</Text>
-      <TextInput
-        style={[estilos.campo, error ? estilos.campoError : null]}
-        placeholderTextColor="#9AA3AF"
-        {...rest}
-      />
-      {!!error && <Text style={estilos.textoError}>{error}</Text>}
-    </View>
-  );
-}
-
-function Select<T extends string>({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value?: T;
-  options: readonly T[];
-  onChange: (v: T) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <View style={{ marginBottom: 10 }}>
-      <Text style={estilos.label}>{label}</Text>
-
-      <TouchableOpacity
-        style={[estilos.campo, { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }]}
-        onPress={() => setOpen((o) => !o)}
-        activeOpacity={0.8}
-      >
-        <Text style={{ color: value ? "#111" : "#9AA3AF" }}>
-          {value ?? "Selecciona una opción"}
-        </Text>
-        <Text>▾</Text>
-      </TouchableOpacity>
-
-      {open && (
-        <View style={estilos.dropdown}>
-          {options.map((opt) => (
-            <TouchableOpacity
-              key={opt}
-              onPress={() => {
-                onChange(opt);
-                setOpen(false);
-              }}
-              style={estilos.dropdownItem}
-            >
-              <Text style={{ color: "#111" }}>{opt}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
-/** ---------- Estilos ---------- */
 const estilos = StyleSheet.create({
-  scroll: { flexGrow: 1, backgroundColor: Colores.fondo, paddingBottom: 40 },
-  contenedor: { paddingHorizontal: 24, paddingVertical: 30 },
-  titulo: {
-    fontSize: 22,
-    fontWeight: "bold",
-    textAlign: "center",
-    color: Colores.primarioOscuro,
-    marginBottom: 20,
-  },
-  subtitulo: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: Colores.verde,
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  label: { marginBottom: 6, color: "#222", fontWeight: "700" },
+  scroll: { paddingBottom: 32 },
+  contenedor: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16 },
+  titulo: { fontSize: 22, fontWeight: "bold", textAlign: "center", color: Colores.primarioOscuro, marginBottom: 14 },
+  subtitulo: { fontSize: 16, fontWeight: "bold", color: Colores.verde, marginTop: 18, marginBottom: 8 },
+  label: { fontSize: 13, color: "#111", marginBottom: 6, fontWeight: "600" },
+
   campo: {
     width: "100%",
     backgroundColor: "#fff",
@@ -693,85 +740,73 @@ const estilos = StyleSheet.create({
     borderColor: Colores.borde,
     padding: 12,
     borderRadius: 10,
+    marginBottom: 8,
   },
-  campoError: { borderColor: Colores.error },
-  textoError: { color: Colores.error, fontSize: 13, marginTop: 6 },
-  hint: { color: "#666", marginTop: -6, marginBottom: 12, fontSize: 12 },
+  inputError: { borderColor: Colores.error },
+  textoError: { color: Colores.error, fontSize: 12, marginBottom: 8 },
+  textoAzul: { color: Colores.primario, fontWeight: "600", marginBottom: 6 },
 
-  filaImagenes: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-    marginBottom: 10,
-  },
+  filaImagenes: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 },
   botonImagen: {
-    width: 64,
-    height: 64,
+    width: 60,
+    height: 60,
     borderWidth: 1,
     borderColor: Colores.primario,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
-  imgPreview: { width: 64, height: 64, borderRadius: 8 },
-  textoMas: { fontSize: 28, color: Colores.primario },
-  btnDel: {
+  imgWrap: { width: 60, height: 60, position: "relative" },
+  imgPreview: { width: 60, height: 60, borderRadius: 8 },
+  closeBadge: {
     position: "absolute",
     top: -8,
     right: -8,
     width: 22,
     height: 22,
-    backgroundColor: "#0008",
     borderRadius: 11,
+    backgroundColor: Colores.error,
     alignItems: "center",
     justifyContent: "center",
+    elevation: 2,
   },
+  closeText: { color: "#fff", fontWeight: "900", lineHeight: 20, fontSize: 16 },
+  textoMas: { fontSize: 28, color: Colores.primario },
 
-  textoAzul: { color: Colores.primario, fontWeight: "600", marginBottom: 6 },
+  botonCrearMesa: { backgroundColor: "#E8F0FF", borderRadius: 10, padding: 10, alignItems: "center", marginBottom: 10 },
+  cardMesa: { backgroundColor: "#fff", borderWidth: 1, borderColor: Colores.borde, borderRadius: 10, padding: 12, marginBottom: 16 },
+
+  headerMesa: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
+  textoNegrita: { fontWeight: "bold" },
   textoRojo: { color: Colores.error, fontWeight: "bold" },
-  textoNegrita: { fontWeight: "bold", marginBottom: 5 },
 
-  botonCrearMesa: {
-    backgroundColor: "#E8F0FF",
-    borderRadius: 10,
-    padding: 10,
+  // Select (campo)
+  select: { justifyContent: "center" },
+
+  // Modal select tipo
+  overlay: {
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
-    marginBottom: 10,
   },
-  cardMesa: {
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: Colores.borde,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 16,
+  backdrop: {
+    ...StyleSheet.absoluteFillObject as any,
+    backgroundColor: "rgba(0,0,0,0.35)",
   },
-  headerMesa: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  modalCard: { width: "85%", backgroundColor: "#fff", borderRadius: 14, padding: 16, elevation: 6 },
+  modalTitle: { fontWeight: "800", fontSize: 16, marginBottom: 8, color: Colores.primarioOscuro },
+  modalItem: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#eee" },
 
-  botonRegistrar: {
-    width: "100%",
-    padding: 14,
-    borderRadius: 12,
-  },
-  textoLleno: {
-    color: Colores.textoClaro,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
+  botonRegistrar: { width: "100%", padding: 14, borderRadius: 12, marginTop: 10 },
+  botonCancelar: { width: "100%", padding: 14, borderRadius: 12, marginTop: 8, backgroundColor: "#fff", borderWidth: 1, borderColor: Colores.borde },
+  textoLleno: { color: Colores.textoClaro, fontWeight: "bold", textAlign: "center" },
+  textoCancelar: { color: "#222", fontWeight: "bold", textAlign: "center" },
 
-  dropdown: {
-    marginTop: 6,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: Colores.borde,
-    borderRadius: 10,
-    overflow: "hidden",
+  loadingWrap: {
+    position: "absolute",
+    left: 0, right: 0, top: 0, bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    alignItems: "center", justifyContent: "center",
   },
-  dropdownItem: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
+  loadingCard: { width: "70%", backgroundColor: "#fff", borderRadius: 14, padding: 18, alignItems: "center" },
 });
