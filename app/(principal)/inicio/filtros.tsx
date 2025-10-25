@@ -1,13 +1,15 @@
 import { Feather } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
 import * as Location from "expo-location";
+import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import MapView, { Callout, Circle, Marker } from "react-native-maps";
 
 export default function Filtros() {
+  const router = useRouter();
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
-  const [distancia, setDistancia] = useState(5); // kilómetros
+  const [distancia, setDistancia] = useState(5);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const mapRef = useRef<MapView | null>(null);
 
@@ -32,7 +34,6 @@ export default function Filtros() {
     },
   ];
 
-  // === Pedir permiso y obtener ubicación ===
   const obtenerUbicacion = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== "granted") {
@@ -40,10 +41,7 @@ export default function Filtros() {
       return;
     }
     const loc = await Location.getCurrentPositionAsync({});
-    const coords = {
-      latitude: loc.coords.latitude,
-      longitude: loc.coords.longitude,
-    };
+    const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
     setLocation(coords);
     mapRef.current?.animateToRegion({
       ...coords,
@@ -52,7 +50,6 @@ export default function Filtros() {
     });
   };
 
-  // === Coordenadas iniciales ===
   const regionInicial = {
     latitude: location?.latitude || -17.397,
     longitude: location?.longitude || -66.038,
@@ -125,7 +122,7 @@ export default function Filtros() {
               {/* Marcador de ubicación actual */}
               {location && <Marker coordinate={location} title="Tu ubicación" pinColor="#0052FF" />}
 
-              {/* === Marcadores con popup === */}
+              {/* Marcadores de locales */}
               {locales.map((local) => (
                 <Marker
                   key={local.id}
@@ -142,7 +139,10 @@ export default function Filtros() {
                           <Text style={styles.popupDistancia}>{local.distancia}</Text>
                         </View>
                       </View>
-                      <TouchableOpacity style={styles.popupBtn}>
+                      <TouchableOpacity
+                        style={styles.popupBtn}
+                        onPress={() => router.push(`/(principal)/inicio/mesas?id=${local.id}`)} // ✅ corregido
+                      >
                         <Text style={styles.popupBtnText}>Ver mesas disponibles</Text>
                       </TouchableOpacity>
                     </View>
@@ -173,7 +173,10 @@ export default function Filtros() {
             <Text style={styles.cardSubtitle}>{local.direccion}</Text>
             <Text style={styles.cardSubtitle}>{local.distancia}</Text>
           </View>
-          <TouchableOpacity style={styles.btnVerMesas}>
+          <TouchableOpacity
+            style={styles.btnVerMesas}
+            onPress={() => router.push(`/(principal)/inicio/mesas?id=${local.id}`)} // ✅ corregido
+          >
             <Text style={styles.btnVerMesasText}>Ver mesas disponibles</Text>
           </TouchableOpacity>
         </View>
@@ -227,16 +230,9 @@ const styles = StyleSheet.create({
     marginVertical: 5,
   },
   filtroText: { color: "#0033CC", fontWeight: "600", fontSize: 12 },
-  linkText: {
-    color: "#E63946",
-    fontWeight: "600",
-    fontSize: 12,
-    textDecorationLine: "underline",
-  },
+  linkText: { color: "#E63946", fontWeight: "600", fontSize: 12, textDecorationLine: "underline" },
   mapContainer: { height: 250, borderRadius: 12, overflow: "hidden" },
   map: { flex: 1 },
-
-  // === Popup estilos ===
   popup: {
     width: 200,
     backgroundColor: "#fff",
@@ -244,47 +240,14 @@ const styles = StyleSheet.create({
     padding: 8,
     elevation: 6,
   },
-  popupRow: {
-    flexDirection: "row",
-    marginBottom: 6,
-  },
-  popupImagen: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-    backgroundColor: "#ccc",
-  },
-  popupNombre: {
-    fontWeight: "700",
-    color: "#0033A0",
-    fontSize: 13,
-  },
-  popupDireccion: {
-    fontSize: 11,
-    color: "#555",
-  },
-  popupDistancia: {
-    fontSize: 11,
-    color: "#777",
-  },
-  popupBtn: {
-    backgroundColor: "#0052FF",
-    borderRadius: 6,
-    paddingVertical: 5,
-    alignItems: "center",
-    marginTop: 4,
-  },
-  popupBtnText: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 12,
-  },
-
-  buttonsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 14,
-  },
+  popupRow: { flexDirection: "row", marginBottom: 6 },
+  popupImagen: { width: 50, height: 50, borderRadius: 8, backgroundColor: "#ccc" },
+  popupNombre: { fontWeight: "700", color: "#0033A0", fontSize: 13 },
+  popupDireccion: { fontSize: 11, color: "#555" },
+  popupDistancia: { fontSize: 11, color: "#777" },
+  popupBtn: { backgroundColor: "#0052FF", borderRadius: 6, paddingVertical: 5, alignItems: "center", marginTop: 4 },
+  popupBtnText: { color: "#fff", fontWeight: "600", fontSize: 12 },
+  buttonsRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 14 },
   optionBtn: {
     backgroundColor: "#0052FF",
     paddingVertical: 10,
@@ -295,13 +258,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   optionText: { color: "#FFF", fontWeight: "600" },
-  card: {
-    backgroundColor: "#FFF",
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 12,
-    elevation: 3,
-  },
+  card: { backgroundColor: "#FFF", borderRadius: 10, padding: 10, marginBottom: 12, elevation: 3 },
   cardImage: { width: "100%", height: 130, borderRadius: 10 },
   cardInfo: { marginTop: 8 },
   cardTitle: { fontSize: 15, fontWeight: "bold", color: "#0033CC" },
