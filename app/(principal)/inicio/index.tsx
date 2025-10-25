@@ -1,142 +1,90 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import { useRouter } from "expo-router";
+import React from "react";
 import {
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
-// 🎨 Paleta de colores
 const Colores = {
   azul: "#0052FF",
-  azulOscuro: "#0033CC",
   azulClaro: "#E8F1FF",
-  verde: "#28A745",
-  rojo: "#DC3545",
-  grisFondo: "#F5F9FF",
-  grisTexto: "#666",
+  fondo: "#F5F9FF",
+  texto: "#222",
+  gris: "#666",
   blanco: "#FFFFFF",
 };
 
-// 🔍 Tipos de filtro simulados
-const filtros = ["Todos", "Americano", "Inglés", "Snooker"];
+export default function InicioCliente() {
+  const router = useRouter();
 
-export default function Inicio() {
-  const [busqueda, setBusqueda] = useState("");
-  const [filtro, setFiltro] = useState("Todos");
-
-  // 🧾 Datos simulados de mesas/promociones
-  const mesas = [
+  // Ejemplo de locales
+  const locales = [
     {
       id: 1,
-      nombre: "Mesa Premium 1",
-      tipo: "Americano",
-      precio: "Bs25/hora",
+      nombre: "Billar Club Premium",
+      direccion: "Av. Principal 123, Centro",
+      distancia: "1.2 km",
       imagen:
         "https://cdn.pixabay.com/photo/2016/11/19/16/56/billiards-1839029_1280.jpg",
-      destacado: true,
     },
     {
       id: 2,
-      nombre: "Mesa Clásica 2",
-      tipo: "Inglés",
-      precio: "Bs18/hora",
+      nombre: "Billar El Rey",
+      direccion: "Calle Bolívar #85",
+      distancia: "2.5 km",
       imagen:
         "https://cdn.pixabay.com/photo/2017/03/20/14/56/pool-table-2157077_1280.jpg",
-      destacado: false,
-    },
-    {
-      id: 3,
-      nombre: "Mesa VIP 3",
-      tipo: "Snooker",
-      precio: "Bs30/hora",
-      imagen:
-        "https://cdn.pixabay.com/photo/2016/11/19/16/56/billiard-1839027_1280.jpg",
-      destacado: true,
     },
   ];
 
-  // 🔍 Filtrado
-  const mesasFiltradas = mesas.filter(
-    (m) =>
-      (filtro === "Todos" || m.tipo === filtro) &&
-      m.nombre.toLowerCase().includes(busqueda.toLowerCase())
-  );
-
   return (
     <ScrollView style={styles.container}>
-      {/* Header */}
-      <Text style={styles.titulo}>Inicio</Text>
-
-      {/* Barra de búsqueda */}
-      <View style={styles.barraBusqueda}>
-        <Ionicons name="search-outline" size={20} color={Colores.azul} />
+      {/* 🔹 Fila superior: Buscador + Filtros */}
+      <View style={styles.searchRow}>
         <TextInput
-          placeholder="Buscar mesas o locales..."
-          placeholderTextColor={Colores.grisTexto}
-          style={styles.inputBusqueda}
-          value={busqueda}
-          onChangeText={setBusqueda}
+          placeholder="Buscar local..."
+          placeholderTextColor={Colores.gris}
+          style={styles.searchInput}
         />
+        <TouchableOpacity style={styles.filterButton}>
+          <Ionicons name="filter-outline" size={22} color={Colores.azul} />
+        </TouchableOpacity>
       </View>
 
-      {/* Filtros */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtros}>
-        {filtros.map((tipo) => (
-          <TouchableOpacity
-            key={tipo}
-            style={[
-              styles.filtro,
-              filtro === tipo && { backgroundColor: Colores.azul },
-            ]}
-            onPress={() => setFiltro(tipo)}
-          >
-            <Text
-              style={[
-                styles.textoFiltro,
-                filtro === tipo && { color: Colores.blanco },
-              ]}
-            >
-              {tipo}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      {/* 🔹 Botones de acción */}
+      <View style={styles.actionRow}>
+        <TouchableOpacity style={styles.actionButton}>
+          <Ionicons name="business-outline" size={18} color={Colores.blanco} />
+          <Text style={styles.actionText}>Locales disponibles</Text>
+        </TouchableOpacity>
 
-      {/* Promociones destacadas */}
-      <Text style={styles.subtitulo}>Promociones y Ofertas</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
-        {mesas
-          .filter((m) => m.destacado)
-          .map((m) => (
-            <View key={m.id} style={styles.cardPromo}>
-              <Image source={{ uri: m.imagen }} style={styles.imagenPromo} />
-              <View style={styles.infoPromo}>
-                <Text style={styles.nombreMesa}>{m.nombre}</Text>
-                <Text style={styles.tipoMesa}>{m.tipo}</Text>
-                <Text style={styles.precioMesa}>{m.precio}</Text>
-              </View>
-            </View>
-          ))}
-      </ScrollView>
+        <TouchableOpacity style={styles.actionButton}>
+          <Ionicons name="map-outline" size={18} color={Colores.blanco} />
+          <Text style={styles.actionText}>Mapa</Text>
+        </TouchableOpacity>
+      </View>
 
-      {/* Resultados de búsqueda */}
-      <Text style={styles.subtitulo}>Mesas disponibles</Text>
-      {mesasFiltradas.map((mesa) => (
-        <View key={mesa.id} style={styles.cardMesa}>
-          <Image source={{ uri: mesa.imagen }} style={styles.imagenMesa} />
-          <View style={styles.infoMesa}>
-            <Text style={styles.nombreMesa}>{mesa.nombre}</Text>
-            <Text style={styles.tipoMesa}>{mesa.tipo}</Text>
-            <Text style={styles.precioMesa}>{mesa.precio}</Text>
+      {/* 🔹 Lista de locales */}
+      {locales.map((local) => (
+        <View key={local.id} style={styles.card}>
+          <Image source={{ uri: local.imagen }} style={styles.image} />
+          <View style={styles.cardInfo}>
+            <Text style={styles.localName}>{local.nombre}</Text>
+            <Text style={styles.localAddress}>{local.direccion}</Text>
+            <Text style={styles.localDistance}>📍 {local.distancia}</Text>
           </View>
 
-          <TouchableOpacity style={styles.botonReservar}>
-            <Text style={styles.textoBoton}>Reservar</Text>
+          <TouchableOpacity
+            style={styles.botonMesas}
+            onPress={() => router.push("/(principal)/mesas")}
+          >
+            <Text style={styles.textoBoton}>Ver mesas disponibles</Text>
           </TouchableOpacity>
         </View>
       ))}
@@ -144,118 +92,91 @@ export default function Inicio() {
   );
 }
 
-// 💅 Estilos
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colores.grisFondo,
+    backgroundColor: Colores.fondo,
     padding: 14,
   },
-  titulo: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: Colores.azul,
-    textAlign: "center",
-    marginBottom: 12,
-  },
-  barraBusqueda: {
+  searchRow: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: Colores.blanco,
     borderRadius: 10,
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    marginBottom: 16,
     elevation: 2,
-    marginBottom: 10,
   },
-  inputBusqueda: {
-    marginLeft: 8,
+  searchInput: {
     flex: 1,
-    color: "#000",
+    height: 40,
+    color: Colores.texto,
   },
-  filtros: {
-    flexDirection: "row",
-    marginBottom: 15,
-  },
-  filtro: {
+  filterButton: {
     backgroundColor: Colores.azulClaro,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
     borderRadius: 8,
-    marginRight: 8,
+    padding: 6,
+    marginLeft: 6,
   },
-  textoFiltro: {
-    color: Colores.azul,
-    fontWeight: "600",
+  actionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 18,
   },
-  subtitulo: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: Colores.azulOscuro,
-    marginBottom: 8,
-  },
-  cardPromo: {
-    backgroundColor: Colores.blanco,
-    borderRadius: 10,
-    marginRight: 10,
-    width: 180,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  imagenPromo: {
-    width: "100%",
-    height: 100,
-  },
-  infoPromo: {
-    padding: 8,
-  },
-  cardMesa: {
-    backgroundColor: Colores.blanco,
-    borderRadius: 10,
-    marginBottom: 12,
+  actionButton: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colores.azul,
+    borderRadius: 8,
+    marginHorizontal: 5,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  actionText: {
+    color: Colores.blanco,
+    fontWeight: "600",
+  },
+  card: {
+    backgroundColor: Colores.blanco,
+    borderRadius: 12,
     padding: 10,
+    marginBottom: 14,
     elevation: 3,
   },
-  imagenMesa: {
-    width: 90,
-    height: 90,
+  image: {
+    width: "100%",
+    height: 150,
     borderRadius: 10,
+    marginBottom: 10,
   },
-  infoMesa: {
-    flex: 1,
-    marginLeft: 10,
+  cardInfo: {
+    paddingHorizontal: 6,
+    marginBottom: 10,
   },
-  nombreMesa: {
+  localName: {
+    fontSize: 16,
     fontWeight: "bold",
-    fontSize: 15,
     color: Colores.azul,
   },
-  tipoMesa: {
+  localAddress: {
+    color: Colores.gris,
     fontSize: 13,
-    color: Colores.grisTexto,
   },
-  precioMesa: {
-    color: Colores.verde,
-    fontWeight: "bold",
+  localDistance: {
+    fontSize: 13,
+    color: Colores.texto,
     marginTop: 4,
   },
-  botonReservar: {
+  botonMesas: {
     backgroundColor: Colores.azul,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderRadius: 8,
+    alignItems: "center",
   },
   textoBoton: {
     color: Colores.blanco,
     fontWeight: "bold",
-    fontSize: 13,
   },
 });
