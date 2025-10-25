@@ -14,7 +14,6 @@ import {
   UIManager,
   View,
 } from "react-native";
-
 import AvatarCircle from "../../components/AvatarCircle";
 import { AuthUser, Rol, clearAuth, getToken, getUser, roleLabel } from "../../utils/authStorage";
 
@@ -67,9 +66,9 @@ export default function LayoutPrincipal() {
         )}
       >
         {/* === CLIENTE === */}
-        <Drawer.Screen name="inicio/index" options={{ title: "Inicio" }} />
-        <Drawer.Screen name="reservas/index" options={{ title: "Mis Reservas" }} />
-        <Drawer.Screen name="perfil/index" options={{ title: "Mi Perfil" }} />
+        <Drawer.Screen name="inicio/filtros" options={{ title: "Inicio" }} />
+        <Drawer.Screen name="reservas" options={{ title: "Mis Reservas" }} />
+        <Drawer.Screen name="perfil" options={{ title: "Mi Perfil" }} />
 
         {/* === PROPIETARIO === */}
         <Drawer.Screen name="propietario/panel" options={{ title: "Panel Propietario" }} />
@@ -104,11 +103,11 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
     [router, navigation]
   );
 
-  // Ruta inicial según rol
+  // 🔧 RUTA INICIO CORREGIDA (todo en minúscula)
   const rutaInicio: string = useMemo(() => {
     if (rol === "ADMINISTRADOR") return "/(principal)/admin/resumen";
     if (rol === "PROPIETARIO") return "/(principal)/propietario/panel";
-    return "/(principal)/inicio"; // Cliente
+    return "/(principal)/inicio/filtros"; // ✅ archivo en minúscula
   }, [rol]);
 
   useEffect(() => {
@@ -144,10 +143,8 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
 
       {/* === Menú === */}
       <View style={styles.menu}>
-        {/* Inicio */}
         <NavItem label="Inicio" icon="home" active={pathname === rutaInicio} onPress={() => go(rutaInicio)} />
 
-        {/* CLIENTE */}
         {rol === "CLIENTE" && (
           <>
             <NavParent
@@ -180,7 +177,6 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
           </>
         )}
 
-        {/* PROPIETARIO */}
         {rol === "PROPIETARIO" && (
           <>
             <NavItem
@@ -198,7 +194,6 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
           </>
         )}
 
-        {/* ADMIN */}
         {rol === "ADMINISTRADOR" && (
           <NavItem
             label="Resumen General"
@@ -208,7 +203,6 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
           />
         )}
 
-        {/* Perfil */}
         <NavItem
           label="Mi Perfil"
           icon="user"
@@ -217,7 +211,6 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
         />
       </View>
 
-      {/* === Cerrar sesión === */}
       <TouchableOpacity onPress={onLogout} style={styles.logoutBtn}>
         <Feather name="log-out" size={18} color="#fff" style={{ marginRight: 8 }} />
         <Text style={styles.logoutText}>Cerrar sesión</Text>
@@ -226,7 +219,7 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
   );
 }
 
-/* === Componentes de navegación === */
+/* === UI Components === */
 function NavItem({ label, icon, onPress, active }: any) {
   return (
     <TouchableOpacity onPress={onPress} style={[styles.item, active && styles.itemActive]}>
