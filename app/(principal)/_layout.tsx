@@ -14,6 +14,7 @@ import {
   UIManager,
   View,
 } from "react-native";
+
 import AvatarCircle from "../../components/AvatarCircle";
 import { AuthUser, Rol, clearAuth, getToken, getUser, roleLabel } from "../../utils/authStorage";
 
@@ -38,6 +39,7 @@ export default function LayoutPrincipal() {
 
   return (
     <>
+      {/* Barra del teléfono visible (oscura) */}
       <StatusBar style="dark" backgroundColor="#0A0A0A" />
       <Drawer
         screenOptions={{
@@ -65,23 +67,12 @@ export default function LayoutPrincipal() {
           />
         )}
       >
-        {/* === CLIENTE === */}
-        <Drawer.Screen name="inicio/filtros" options={{ title: "Inicio" }} />
-        <Drawer.Screen name="reservas" options={{ title: "Mis Reservas" }} />
-        <Drawer.Screen name="perfil" options={{ title: "Mi Perfil" }} />
-
-        {/* === PROPIETARIO === */}
-        <Drawer.Screen name="propietario/panel" options={{ title: "Panel Propietario" }} />
-        <Drawer.Screen name="propietario/solicitudes" options={{ title: "Solicitudes de Reserva" }} />
-
-        {/* === ADMIN === */}
-        <Drawer.Screen name="admin/resumen" options={{ title: "Resumen Admin" }} />
+        <Drawer.Screen name="index" options={{ title: "Inicio" }} />
       </Drawer>
     </>
   );
 }
 
-/* ========== CUSTOM DRAWER ========== */
 type CustomDrawerProps = DrawerContentComponentProps & {
   user: AuthUser | null;
   onLogout: () => void | Promise<void>;
@@ -92,6 +83,10 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
   const pathname = usePathname();
   const rol = user?.rol;
 
+  // submenús
+  const [openUsuarios, setOpenUsuarios] = useState(false);
+  const [openLocales, setOpenLocales] = useState(false);
+  const [openGestion, setOpenGestion] = useState(false);
   const [openMisReservas, setOpenMisReservas] = useState(false);
 
   const go = useCallback(
@@ -103,21 +98,30 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
     [router, navigation]
   );
 
-  // 🔧 RUTA INICIO CORREGIDA (todo en minúscula)
+  // ruta Inicio por rol
   const rutaInicio: string = useMemo(() => {
     if (rol === "ADMINISTRADOR") return "/(principal)/admin/resumen";
     if (rol === "PROPIETARIO") return "/(principal)/propietario/panel";
-    return "/(principal)/inicio/filtros"; // ✅ archivo en minúscula
+    return "/(principal)/inicio/filtros";
   }, [rol]);
 
+  // mantener submenús desplegados según ruta actual
   useEffect(() => {
     if (!pathname) return;
+    setOpenUsuarios(pathname.includes("/admin/usuarios/"));
+    setOpenLocales(pathname.includes("/admin/locales/"));
+    setOpenGestion(pathname.includes("/propietario/local/"));
     setOpenMisReservas(pathname.includes("/cliente/reservas/"));
   }, [pathname]);
 
+  const toggle = (fn: React.Dispatch<React.SetStateAction<boolean>>) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    fn((v) => !v);
+  };
+
   return (
     <DrawerContentScrollView contentContainerStyle={styles.scroll}>
-      {/* === Header === */}
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.welcome}>
           <Text style={{ fontWeight: "800" }}>Bienvenido</Text>
@@ -141,17 +145,123 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
         </View>
       </View>
 
-      {/* === Menú === */}
+      {/* Menú */}
       <View style={styles.menu}>
+        {/* Inicio (todos) */}
         <NavItem label="Inicio" icon="home" active={pathname === rutaInicio} onPress={() => go(rutaInicio)} />
 
+        {/* ADMIN */}
+        {rol === "ADMINISTRADOR" && (
+          <>
+            <NavParent label="Usuarios" icon="users" open={openUsuarios} onToggle={() => toggle(setOpenUsuarios)} />
+            {openUsuarios && (
+              <SubMenu>
+                <SubItem
+                  label="Clientes"
+                  active={pathname.endsWith("/admin/usuarios/clientes")}
+                  onPress={() => go("/(principal)/admin/usuarios/clientes")}
+                />
+                <SubItem
+                  label="Propietarios"
+                  active={pathname.endsWith("/admin/usuarios/propietarios")}
+                  onPress={() => go("/(principal)/admin/usuarios/propietarios")}
+                />
+              </SubMenu>
+            )}
+
+            <NavParent
+              label="Locales Registrados"
+              icon="map-pin"
+              open={openLocales}
+              onToggle={() => toggle(setOpenLocales)}
+            />
+            {openLocales && (
+              <SubMenu>
+                <SubItem
+                  label="Locales Activos"
+                  active={pathname.endsWith("/admin/locales/activos")}
+                  onPress={() => go("/(principal)/admin/locales/activos")}
+                />
+                <SubItem
+                  label="Locales Suspendidos"
+                  active={pathname.endsWith("/admin/locales/suspendidos")}
+                  onPress={() => go("/(principal)/admin/locales/suspendidos")}
+                />
+              </SubMenu>
+            )}
+          </>
+        )}
+
+        {/* PROPIETARIO */}
+        {rol === "PROPIETARIO" && (
+          <>
+            <NavItem
+              label="Solicitudes de Reserva"
+              icon="inbox"
+              active={pathname.endsWith("/propietario/solicitudes")}
+              onPress={() => go("/(principal)/propietario/solicitudes")}
+            />
+            <NavItem
+              label="Mesas en Uso"
+              icon="grid"
+              active={pathname.endsWith("/propietario/mesas-uso")}
+              onPress={() => go("/(principal)/propietario/mesas-uso")}
+            />
+            <NavItem
+              label="Historial de Reservas"
+              icon="calendar"
+              active={pathname.endsWith("/propietario/historial")}
+              onPress={() => go("/(principal)/propietario/historial")}
+            />
+
+            <NavParent label="Gestión del Local" icon="settings" open={openGestion} onToggle={() => toggle(setOpenGestion)} />
+            {openGestion && (
+              <SubMenu>
+                <SubItem
+                  label="Datos del Local"
+                  active={pathname.endsWith("/propietario/local/datos")}
+                  onPress={() => go("/(principal)/propietario/local/datos")}
+                />
+                <SubItem
+                  label="Mesas"
+                  active={pathname.endsWith("/propietario/local/mesas")}
+                  onPress={() => go("/(principal)/propietario/local/mesas")}
+                />
+                <SubItem
+                  label="Horarios"
+                  active={pathname.endsWith("/propietario/local/horarios")}
+                  onPress={() => go("/(principal)/propietario/local/horarios")}
+                />
+                <SubItem
+                  label="Descuentos"
+                  active={pathname.endsWith("/propietario/local/descuentos")}
+                  onPress={() => go("/(principal)/propietario/local/descuentos")}
+                />
+                <SubItem
+                  label="Mi QR de Pago"
+                  active={pathname.endsWith("/propietario/local/qr")}
+                  onPress={() => go("/(principal)/propietario/local/qr")}
+                />
+              </SubMenu>
+            )}
+
+            <NavItem
+              label="Devoluciones"
+              icon="rotate-ccw"
+              active={pathname.endsWith("/propietario/devoluciones")}
+              onPress={() => go("/(principal)/propietario/devoluciones")}
+            />
+          </>
+        )}
+
+        {/* CLIENTE */}
         {rol === "CLIENTE" && (
           <>
             <NavParent
               label="Mis Reservas"
               icon="calendar"
               open={openMisReservas}
-              onToggle={() => setOpenMisReservas(!openMisReservas)}
+              onToggle={() => toggle(setOpenMisReservas)}
             />
             {openMisReservas && (
               <SubMenu>
@@ -174,43 +284,15 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
               active={pathname.endsWith("/cliente/historial")}
               onPress={() => go("/(principal)/cliente/historial")}
             />
+            {/* Cliente: sin “Devoluciones” */}
           </>
         )}
 
-        {rol === "PROPIETARIO" && (
-          <>
-            <NavItem
-              label="Solicitudes de Reserva"
-              icon="inbox"
-              active={pathname.endsWith("/propietario/solicitudes")}
-              onPress={() => go("/(principal)/propietario/solicitudes")}
-            />
-            <NavItem
-              label="Panel de Control"
-              icon="grid"
-              active={pathname.endsWith("/propietario/panel")}
-              onPress={() => go("/(principal)/propietario/panel")}
-            />
-          </>
-        )}
-
-        {rol === "ADMINISTRADOR" && (
-          <NavItem
-            label="Resumen General"
-            icon="bar-chart"
-            active={pathname.endsWith("/admin/resumen")}
-            onPress={() => go("/(principal)/admin/resumen")}
-          />
-        )}
-
-        <NavItem
-          label="Mi Perfil"
-          icon="user"
-          active={pathname.endsWith("/perfil")}
-          onPress={() => go("/(principal)/perfil")}
-        />
+        {/* Mi Perfil (todos) */}
+        <NavItem label="Mi Perfil" icon="user" active={pathname.endsWith("/perfil")} onPress={() => go("/(principal)/perfil")} />
       </View>
 
+      {/* Cerrar sesión */}
       <TouchableOpacity onPress={onLogout} style={styles.logoutBtn}>
         <Feather name="log-out" size={18} color="#fff" style={{ marginRight: 8 }} />
         <Text style={styles.logoutText}>Cerrar sesión</Text>
@@ -219,45 +301,68 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
   );
 }
 
-/* === UI Components === */
-function NavItem({ label, icon, onPress, active }: any) {
+/* ===== componentes UI ===== */
+
+function NavItem({
+  label,
+  icon,
+  onPress,
+  active,
+}: {
+  label: string;
+  icon: React.ComponentProps<typeof Feather>["name"];
+  onPress: () => void;
+  active?: boolean;
+}) {
   return (
-    <TouchableOpacity onPress={onPress} style={[styles.item, active && styles.itemActive]}>
+    <TouchableOpacity onPress={onPress} style={[styles.item, active ? styles.itemActive : null]}>
       <Feather name={icon} size={18} color={active ? "#0B5FFF" : "#222"} />
-      <Text style={[styles.itemText, active && styles.itemTextActive]}>{label}</Text>
+      <Text style={[styles.itemText, active ? styles.itemTextActive : null]} numberOfLines={1}>
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 }
 
-function NavParent({ label, icon, open, onToggle }: any) {
+function NavParent({
+  label,
+  icon,
+  open,
+  onToggle,
+}: {
+  label: string;
+  icon: React.ComponentProps<typeof Feather>["name"];
+  open: boolean;
+  onToggle: () => void;
+}) {
   return (
     <TouchableOpacity onPress={onToggle} style={styles.item}>
       <Feather name={icon} size={18} color="#222" />
-      <Text style={styles.itemText}>{label}</Text>
-      <Feather
-        name={open ? "chevron-up" : "chevron-down"}
-        size={18}
-        color="#777"
-        style={{ marginLeft: "auto" }}
-      />
+      <Text style={styles.itemText} numberOfLines={1}>
+        {label}
+      </Text>
+      <Feather name={open ? "chevron-up" : "chevron-down"} size={18} color="#777" style={{ marginLeft: "auto" }} />
     </TouchableOpacity>
   );
 }
 
-function SubMenu({ children }: any) {
+function SubMenu({ children }: { children: React.ReactNode }) {
   return <View style={styles.submenu}>{children}</View>;
 }
 
-function SubItem({ label, onPress, active }: any) {
+function SubItem({ label, onPress, active }: { label: string; onPress: () => void; active?: boolean }) {
   return (
-    <TouchableOpacity onPress={onPress} style={[styles.subItem, active && styles.subItemActive]}>
-      <View style={[styles.bullet, active && styles.bulletActive]} />
-      <Text style={[styles.subItemText, active && styles.subItemTextActive]}>{label}</Text>
+    <TouchableOpacity onPress={onPress} style={[styles.subItem, active ? styles.subItemActive : null]}>
+      <View style={[styles.bullet, active ? styles.bulletActive : null]} />
+      <Text style={[styles.subItemText, active ? styles.subItemTextActive : null]} numberOfLines={1}>
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 }
 
-/* === Estilos === */
+/* ===== estilos ===== */
+
 const badgeByRol: Record<Rol, { bg: string; fg: string }> = {
   ADMINISTRADOR: { bg: "#8B5CF6", fg: "#FFFFFF" },
   PROPIETARIO: { bg: "#059669", fg: "#FFFFFF" },
@@ -266,6 +371,7 @@ const badgeByRol: Record<Rol, { bg: string; fg: string }> = {
 
 const styles = StyleSheet.create({
   scroll: { paddingBottom: 24 },
+
   header: {
     paddingTop: 18,
     paddingHorizontal: 16,
@@ -275,15 +381,21 @@ const styles = StyleSheet.create({
   },
   welcome: { color: "#222" },
   name: { color: "#0033A0", marginTop: 2 },
+
   roleAvatarRow: {
     marginTop: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
   badgeText: { fontWeight: "800" },
   avatarButton: { padding: 4, marginLeft: 12 },
+
   menu: { paddingTop: 8 },
   item: {
     flexDirection: "row",
@@ -294,6 +406,7 @@ const styles = StyleSheet.create({
   itemText: { marginLeft: 10, color: "#222", fontWeight: "600" },
   itemActive: { backgroundColor: "#E9F0FF" },
   itemTextActive: { color: "#0B5FFF" },
+
   submenu: { paddingLeft: 24, paddingBottom: 6 },
   subItem: {
     flexDirection: "row",
@@ -306,6 +419,7 @@ const styles = StyleSheet.create({
   subItemText: { color: "#333", fontWeight: "600" },
   subItemActive: { backgroundColor: "#EDF4FF", borderRadius: 8 },
   subItemTextActive: { color: "#0B5FFF" },
+
   logoutBtn: {
     marginTop: 16,
     marginHorizontal: 16,

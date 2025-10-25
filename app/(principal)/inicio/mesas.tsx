@@ -59,7 +59,8 @@ export default function Mesas() {
 
           <TouchableOpacity
             style={styles.btnReservar}
-            onPress={() => alert(`Reservar ${mesa.nombre}`)} // Luego lo conectas al backend
+            onPress={() => router.push(`/(principal)/inicio/reservar?mesaId=${mesa.id}`)}
+ // Luego lo conectas al backend
           >
             <Text style={styles.btnText}>Reservar</Text>
           </TouchableOpacity>
