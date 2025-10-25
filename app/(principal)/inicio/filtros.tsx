@@ -3,9 +3,9 @@ import Slider from "@react-native-community/slider";
 import * as Location from "expo-location";
 import React, { useRef, useState } from "react";
 import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import MapView, { Circle, Marker } from "react-native-maps";
+import MapView, { Callout, Circle, Marker } from "react-native-maps";
 
-export default function Inicio() {
+export default function Filtros() {
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [distancia, setDistancia] = useState(5); // kilómetros
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -14,21 +14,21 @@ export default function Inicio() {
   const locales = [
     {
       id: 1,
-      nombre: "Billar Club Premium",
-      direccion: "Av. Principal 123",
-      distancia: "2.3 km",
+      nombre: "Billar Sacaba Center",
+      direccion: "Av. Chapare 456",
+      distancia: "1.2 km",
       imagen: "https://cdn.pixabay.com/photo/2017/03/20/14/56/pool-table-2157077_1280.jpg",
-      lat: -17.7835,
-      lon: -63.1821,
+      lat: -17.3985,
+      lon: -66.0392,
     },
     {
       id: 2,
-      nombre: "Billar La 8 Dorada",
-      direccion: "Calle Sucre N°45",
-      distancia: "1.1 km",
+      nombre: "Billar Don Beto",
+      direccion: "Calle Bolívar 123",
+      distancia: "0.9 km",
       imagen: "https://cdn.pixabay.com/photo/2016/11/19/16/56/billiards-1839029_1280.jpg",
-      lat: -17.784,
-      lon: -63.18,
+      lat: -17.396,
+      lon: -66.037,
     },
   ];
 
@@ -52,15 +52,14 @@ export default function Inicio() {
     });
   };
 
-  // === Coordenadas iniciales si no hay GPS aún ===
+  // === Coordenadas iniciales ===
   const regionInicial = {
-    latitude: location?.latitude || -17.7835,
-    longitude: location?.longitude || -63.1821,
+    latitude: location?.latitude || -17.397,
+    longitude: location?.longitude || -66.038,
     latitudeDelta: 0.03,
     longitudeDelta: 0.03,
   };
 
-  // === Radio del círculo (metros) ===
   const radio = distancia * 1000;
 
   return (
@@ -78,12 +77,10 @@ export default function Inicio() {
         <View style={styles.filtrosContainer}>
           <Text style={styles.filtroTitulo}>Filtros</Text>
 
-          {/* Botón ubicación */}
           <TouchableOpacity style={styles.btnUbicacion} onPress={obtenerUbicacion}>
             <Text style={styles.btnUbicacionText}>Usar mi ubicación</Text>
           </TouchableOpacity>
 
-          {/* Botones de opciones */}
           <View style={styles.filtrosRow}>
             <TouchableOpacity style={styles.filtroBtn}>
               <Text style={styles.filtroText}>Distancia: {distancia.toFixed(1)} Km</Text>
@@ -98,7 +95,6 @@ export default function Inicio() {
             </TouchableOpacity>
           </View>
 
-          {/* Slider de distancia */}
           <View style={{ marginVertical: 8 }}>
             <Slider
               style={{ width: "100%", height: 40 }}
@@ -113,10 +109,10 @@ export default function Inicio() {
             />
           </View>
 
-          {/* Mapa */}
+          {/* === MAPA === */}
           <View style={styles.mapContainer}>
             <MapView ref={mapRef} style={styles.map} initialRegion={regionInicial}>
-              {/* Circulo de distancia */}
+              {/* Círculo de distancia */}
               {location && (
                 <Circle
                   center={location}
@@ -126,17 +122,32 @@ export default function Inicio() {
                 />
               )}
 
-              {/* Marcador ubicación actual */}
+              {/* Marcador de ubicación actual */}
               {location && <Marker coordinate={location} title="Tu ubicación" pinColor="#0052FF" />}
 
-              {/* Marcadores de locales */}
+              {/* === Marcadores con popup === */}
               {locales.map((local) => (
                 <Marker
                   key={local.id}
                   coordinate={{ latitude: local.lat, longitude: local.lon }}
                   title={local.nombre}
-                  description={local.direccion}
-                />
+                >
+                  <Callout tooltip>
+                    <View style={styles.popup}>
+                      <View style={styles.popupRow}>
+                        <Image source={{ uri: local.imagen }} style={styles.popupImagen} />
+                        <View style={{ flex: 1, marginLeft: 6 }}>
+                          <Text style={styles.popupNombre}>{local.nombre}</Text>
+                          <Text style={styles.popupDireccion}>{local.direccion}</Text>
+                          <Text style={styles.popupDistancia}>{local.distancia}</Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity style={styles.popupBtn}>
+                        <Text style={styles.popupBtnText}>Ver mesas disponibles</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </Callout>
+                </Marker>
               ))}
             </MapView>
           </View>
@@ -185,7 +196,6 @@ const styles = StyleSheet.create({
   },
   input: { flex: 1, padding: 10, fontSize: 14, color: "#222" },
   filterBtn: { backgroundColor: "#E9F0FF", padding: 8, borderRadius: 8 },
-
   filtrosContainer: {
     backgroundColor: "#FFF",
     borderRadius: 12,
@@ -223,9 +233,52 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textDecorationLine: "underline",
   },
-
-  mapContainer: { height: 220, borderRadius: 12, overflow: "hidden" },
+  mapContainer: { height: 250, borderRadius: 12, overflow: "hidden" },
   map: { flex: 1 },
+
+  // === Popup estilos ===
+  popup: {
+    width: 200,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 8,
+    elevation: 6,
+  },
+  popupRow: {
+    flexDirection: "row",
+    marginBottom: 6,
+  },
+  popupImagen: {
+    width: 50,
+    height: 50,
+    borderRadius: 8,
+    backgroundColor: "#ccc",
+  },
+  popupNombre: {
+    fontWeight: "700",
+    color: "#0033A0",
+    fontSize: 13,
+  },
+  popupDireccion: {
+    fontSize: 11,
+    color: "#555",
+  },
+  popupDistancia: {
+    fontSize: 11,
+    color: "#777",
+  },
+  popupBtn: {
+    backgroundColor: "#0052FF",
+    borderRadius: 6,
+    paddingVertical: 5,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  popupBtnText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 12,
+  },
 
   buttonsRow: {
     flexDirection: "row",
@@ -242,7 +295,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   optionText: { color: "#FFF", fontWeight: "600" },
-
   card: {
     backgroundColor: "#FFF",
     borderRadius: 10,
