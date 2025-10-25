@@ -282,7 +282,7 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
               label="Historial de Reservas"
               icon="book-open"
               active={pathname.endsWith("/cliente/historial")}
-              onPress={() => go("/(principal)/cliente/historial")}
+              onPress={() => go("/(principal)/historial/historial")}
             />
             {/* Cliente: sin “Devoluciones” */}
           </>
