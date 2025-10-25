@@ -268,12 +268,12 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
                 <SubItem
                   label="Pendientes"
                   active={pathname.endsWith("/cliente/reservas/pendientes")}
-                  onPress={() => go("/(principal)/cliente/reservas/pendientes")}
+                  onPress={() => go("/(principal)/solicitudes/pendientes")}
                 />
                 <SubItem
                   label="Confirmadas"
                   active={pathname.endsWith("/cliente/reservas/confirmadas")}
-                  onPress={() => go("/(principal)/cliente/reservas/confirmadas")}
+                  onPress={() => go("/(principal)/solicitudes/confirmadas")}
                 />
               </SubMenu>
             )}
