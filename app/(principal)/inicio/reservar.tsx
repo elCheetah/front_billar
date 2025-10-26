@@ -1,4 +1,6 @@
 import { AntDesign } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -16,6 +18,13 @@ export default function ReservarMesa() {
   const router = useRouter();
 
   const [mostrarQR, setMostrarQR] = useState(false);
+  const [mostrarCalendario, setMostrarCalendario] = useState(false);
+  const [fecha, setFecha] = useState(new Date());
+  const [imagenComprobante, setImagenComprobante] = useState<string | null>(
+    null
+  );
+  const [horaSeleccionada, setHoraSeleccionada] = useState<string | null>(null);
+  const [duracion, setDuracion] = useState<string>("");
 
   // === Datos simulados ===
   const mesas = [
@@ -23,22 +32,64 @@ export default function ReservarMesa() {
       id: 1,
       nombre: "Mesa 1",
       tipo: "Americano",
-      precio: "Bs 25/hora",
+      precio: 25,
       imagen:
         "https://cdn.pixabay.com/photo/2017/03/20/14/56/pool-table-2157077_1280.jpg",
+      horasDisponibles: ["10:00", "12:00", "14:00", "16:00", "18:00", "19:00"],
     },
     {
       id: 2,
       nombre: "Mesa 2",
       tipo: "Inglés",
-      precio: "Bs 20/hora",
+      precio: 20,
       imagen:
         "https://cdn.pixabay.com/photo/2016/11/19/16/56/billiards-1839029_1280.jpg",
+      horasDisponibles: ["11:00", "13:00", "15:00", "17:00", "20:00"],
     },
   ];
 
-  // Buscar mesa según ID
   const mesa = mesas.find((m) => m.id === Number(mesaId)) || mesas[0];
+
+  // === Función para cambiar fecha ===
+  const onChangeFecha = (event: any, selectedDate?: Date) => {
+    setMostrarCalendario(false);
+    if (selectedDate) {
+      const hoy = new Date();
+      const diferencia = (selectedDate.getTime() - hoy.getTime()) / (1000 * 3600 * 24);
+      if (diferencia < 1) {
+        Alert.alert("Error", "Solo puedes reservar con al menos un día de anticipación.");
+        return;
+      }
+      setFecha(selectedDate);
+    }
+  };
+
+  // === Seleccionar hora ===
+  const seleccionarHora = (hora: string) => {
+    setHoraSeleccionada(hora);
+    setDuracion("1 hora");
+  };
+
+  // === Subir comprobante ===
+  const subirImagen = async () => {
+    const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permiso.granted) {
+      Alert.alert("Permiso denegado", "Debes permitir el acceso a tus fotos.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setImagenComprobante(result.assets[0].uri);
+    }
+  };
+
+  const eliminarImagen = () => setImagenComprobante(null);
 
   return (
     <ScrollView style={styles.container}>
@@ -50,49 +101,68 @@ export default function ReservarMesa() {
         <View style={styles.mesaInfo}>
           <Text style={styles.mesaNombre}>{mesa.nombre}</Text>
           <Text style={styles.mesaTexto}>Tipo: {mesa.tipo}</Text>
-          <Text style={styles.mesaTexto}>Precio: {mesa.precio}</Text>
+          <Text style={styles.mesaTexto}>Precio: Bs {mesa.precio}/hora</Text>
         </View>
       </View>
 
-      {/* === Selección de fecha/hora === */}
+      {/* === Fecha y hora === */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Fecha</Text>
-        <View style={styles.dateBox}>
+
+        <TouchableOpacity
+          style={styles.dateBox}
+          onPress={() => setMostrarCalendario(true)}
+        >
           <AntDesign name="calendar" size={18} color="#0033CC" />
-          <Text style={{ marginLeft: 6 }}>23/09/2025</Text>
-        </View>
+          <Text style={{ marginLeft: 6 }}>
+            {fecha.toLocaleDateString("es-ES")}
+          </Text>
+        </TouchableOpacity>
+
+        {mostrarCalendario && (
+          <DateTimePicker
+            value={fecha}
+            mode="date"
+            display="calendar"
+            onChange={onChangeFecha}
+            minimumDate={new Date()}
+          />
+        )}
 
         <Text style={styles.sectionTitle}>Hora</Text>
         <View style={styles.grid}>
-          {[
-            "10:00",
-            "11:00",
-            "12:00",
-            "13:00",
-            "14:00",
-            "15:00",
-            "16:00",
-            "17:00",
-            "18:00",
-            "19:00",
-            "20:00",
-            "21:00",
-          ].map((hora) => (
-            <TouchableOpacity key={hora} style={styles.horaBtn}>
-              <Text>{hora}</Text>
+          {mesa.horasDisponibles.map((hora) => (
+            <TouchableOpacity
+              key={hora}
+              style={[
+                styles.horaBtn,
+                horaSeleccionada === hora && styles.horaBtnSelected,
+              ]}
+              onPress={() => seleccionarHora(hora)}
+            >
+              <Text
+                style={
+                  horaSeleccionada === hora
+                    ? styles.horaTextSelected
+                    : styles.horaText
+                }
+              >
+                {hora}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
 
         <Text style={styles.sectionTitle}>Duración</Text>
         <View style={styles.selectBox}>
-          <Text>2 horas</Text>
-          <AntDesign name="down" size={16} color="#333" />
+          <Text>{duracion || "Selecciona una hora"}</Text>
         </View>
 
         <View style={styles.totalRow}>
           <Text style={styles.totalText}>Total a pagar:</Text>
-          <Text style={styles.totalMonto}>Bs 50</Text>
+          <Text style={styles.totalMonto}>
+            Bs {horaSeleccionada ? mesa.precio : 0}
+          </Text>
         </View>
 
         {!mostrarQR ? (
@@ -120,14 +190,34 @@ export default function ReservarMesa() {
         )}
       </View>
 
-      {/* === Botones finales === */}
-      <TouchableOpacity
-        style={styles.btn}
-        onPress={() => Alert.alert("Subir comprobante")}
-      >
-        <Text style={styles.btnText}>Subir imagen comprobante</Text>
-      </TouchableOpacity>
+      {/* === Comprobante === */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Comprobante de pago</Text>
 
+        {imagenComprobante ? (
+          <View style={styles.imagenContainer}>
+            <Image
+              source={{ uri: imagenComprobante }}
+              style={styles.imagenComprobante}
+            />
+            <TouchableOpacity
+              onPress={eliminarImagen}
+              style={styles.btnEliminar}
+            >
+              <Text style={{ color: "#FFF" }}>Eliminar</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity onPress={subirImagen} style={styles.uploadBox}>
+            <AntDesign name="upload" size={22} color="#0052FF" />
+            <Text style={{ color: "#0052FF", marginLeft: 6 }}>
+              Subir imagen comprobante
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* === Botones === */}
       <TouchableOpacity
         style={styles.btn}
         onPress={() => Alert.alert("Reserva confirmada")}
@@ -196,6 +286,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     margin: 3,
   },
+  horaBtnSelected: { backgroundColor: "#0052FF" },
+  horaText: { color: "#000" },
+  horaTextSelected: { color: "#FFF", fontWeight: "bold" },
   selectBox: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -219,7 +312,6 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
     textAlign: "right",
   },
-
   qrContainer: {
     alignItems: "center",
     marginTop: 10,
@@ -237,7 +329,32 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   btnDescargarText: { color: "#FFF", fontWeight: "bold" },
-
+  uploadBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#0052FF",
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 6,
+  },
+  imagenContainer: {
+    alignItems: "center",
+    marginTop: 8,
+  },
+  imagenComprobante: {
+    width: 200,
+    height: 200,
+    borderRadius: 8,
+  },
+  btnEliminar: {
+    backgroundColor: "#E63946",
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    marginTop: 6,
+  },
   btn: {
     backgroundColor: "#0052FF",
     paddingVertical: 10,
