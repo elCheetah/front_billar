@@ -3,12 +3,22 @@ import Slider from "@react-native-community/slider";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
-import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import MapView, { Callout, Circle, Marker } from "react-native-maps";
 
 export default function Filtros() {
   const router = useRouter();
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [mostrarMapaSolo, setMostrarMapaSolo] = useState(false); // 👈 nuevo estado
   const [distancia, setDistancia] = useState(5);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const mapRef = useRef<MapView | null>(null);
@@ -61,16 +71,47 @@ export default function Filtros() {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* === Barra de búsqueda === */}
-      <View style={styles.searchContainer}>
-        <TextInput style={styles.input} placeholder="Buscar local..." placeholderTextColor="#888" />
-        <TouchableOpacity style={styles.filterBtn} onPress={() => setMostrarFiltros(!mostrarFiltros)}>
-          <Feather name="sliders" size={20} color="#0052FF" />
+      {/* === Botones arriba === */}
+      <View style={styles.buttonsRow}>
+        <TouchableOpacity
+          style={[
+            styles.optionBtn,
+            !mostrarMapaSolo && { backgroundColor: "#003CBA" },
+          ]}
+          onPress={() => setMostrarMapaSolo(false)}
+        >
+          <Text style={styles.optionText}>Locales disponibles</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.optionBtn,
+            mostrarMapaSolo && { backgroundColor: "#003CBA" },
+          ]}
+          onPress={() => setMostrarMapaSolo(true)}
+        >
+          <Text style={styles.optionText}>Mapa</Text>
         </TouchableOpacity>
       </View>
 
+      {/* === Barra de búsqueda === */}
+      {!mostrarMapaSolo && (
+        <View style={styles.searchContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder="Buscar local..."
+            placeholderTextColor="#888"
+          />
+          <TouchableOpacity
+            style={styles.filterBtn}
+            onPress={() => setMostrarFiltros(!mostrarFiltros)}
+          >
+            <Feather name="sliders" size={20} color="#0052FF" />
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* === FILTROS === */}
-      {mostrarFiltros && (
+      {(!mostrarMapaSolo && mostrarFiltros) || mostrarMapaSolo ? (
         <View style={styles.filtrosContainer}>
           <Text style={styles.filtroTitulo}>Filtros</Text>
 
@@ -109,7 +150,6 @@ export default function Filtros() {
           {/* === MAPA === */}
           <View style={styles.mapContainer}>
             <MapView ref={mapRef} style={styles.map} initialRegion={regionInicial}>
-              {/* Círculo de distancia */}
               {location && (
                 <Circle
                   center={location}
@@ -119,10 +159,8 @@ export default function Filtros() {
                 />
               )}
 
-              {/* Marcador de ubicación actual */}
               {location && <Marker coordinate={location} title="Tu ubicación" pinColor="#0052FF" />}
 
-              {/* Marcadores de locales */}
               {locales.map((local) => (
                 <Marker
                   key={local.id}
@@ -141,7 +179,7 @@ export default function Filtros() {
                       </View>
                       <TouchableOpacity
                         style={styles.popupBtn}
-                        onPress={() => router.push(`/(principal)/inicio/mesas?id=${local.id}`)} // ✅ corregido
+                        onPress={() => router.push(`/(principal)/inicio/mesas?id=${local.id}`)}
                       >
                         <Text style={styles.popupBtnText}>Ver mesas disponibles</Text>
                       </TouchableOpacity>
@@ -152,35 +190,26 @@ export default function Filtros() {
             </MapView>
           </View>
         </View>
-      )}
-
-      {/* === Botones principales === */}
-      <View style={styles.buttonsRow}>
-        <TouchableOpacity style={styles.optionBtn}>
-          <Text style={styles.optionText}>Locales disponibles</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.optionBtn}>
-          <Text style={styles.optionText}>Mapa</Text>
-        </TouchableOpacity>
-      </View>
+      ) : null}
 
       {/* === Lista de locales === */}
-      {locales.map((local) => (
-        <View key={local.id} style={styles.card}>
-          <Image source={{ uri: local.imagen }} style={styles.cardImage} />
-          <View style={styles.cardInfo}>
-            <Text style={styles.cardTitle}>{local.nombre}</Text>
-            <Text style={styles.cardSubtitle}>{local.direccion}</Text>
-            <Text style={styles.cardSubtitle}>{local.distancia}</Text>
+      {!mostrarMapaSolo &&
+        locales.map((local) => (
+          <View key={local.id} style={styles.card}>
+            <Image source={{ uri: local.imagen }} style={styles.cardImage} />
+            <View style={styles.cardInfo}>
+              <Text style={styles.cardTitle}>{local.nombre}</Text>
+              <Text style={styles.cardSubtitle}>{local.direccion}</Text>
+              <Text style={styles.cardSubtitle}>{local.distancia}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.btnVerMesas}
+              onPress={() => router.push(`/(principal)/inicio/mesas?id=${local.id}`)}
+            >
+              <Text style={styles.btnVerMesasText}>Ver mesas disponibles</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.btnVerMesas}
-            onPress={() => router.push(`/(principal)/inicio/mesas?id=${local.id}`)} // ✅ corregido
-          >
-            <Text style={styles.btnVerMesasText}>Ver mesas disponibles</Text>
-          </TouchableOpacity>
-        </View>
-      ))}
+        ))}
     </ScrollView>
   );
 }
@@ -230,7 +259,12 @@ const styles = StyleSheet.create({
     marginVertical: 5,
   },
   filtroText: { color: "#0033CC", fontWeight: "600", fontSize: 12 },
-  linkText: { color: "#E63946", fontWeight: "600", fontSize: 12, textDecorationLine: "underline" },
+  linkText: {
+    color: "#E63946",
+    fontWeight: "600",
+    fontSize: 12,
+    textDecorationLine: "underline",
+  },
   mapContainer: { height: 250, borderRadius: 12, overflow: "hidden" },
   map: { flex: 1 },
   popup: {
@@ -245,9 +279,19 @@ const styles = StyleSheet.create({
   popupNombre: { fontWeight: "700", color: "#0033A0", fontSize: 13 },
   popupDireccion: { fontSize: 11, color: "#555" },
   popupDistancia: { fontSize: 11, color: "#777" },
-  popupBtn: { backgroundColor: "#0052FF", borderRadius: 6, paddingVertical: 5, alignItems: "center", marginTop: 4 },
+  popupBtn: {
+    backgroundColor: "#0052FF",
+    borderRadius: 6,
+    paddingVertical: 5,
+    alignItems: "center",
+    marginTop: 4,
+  },
   popupBtnText: { color: "#fff", fontWeight: "600", fontSize: 12 },
-  buttonsRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 14 },
+  buttonsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
   optionBtn: {
     backgroundColor: "#0052FF",
     paddingVertical: 10,
@@ -258,7 +302,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   optionText: { color: "#FFF", fontWeight: "600" },
-  card: { backgroundColor: "#FFF", borderRadius: 10, padding: 10, marginBottom: 12, elevation: 3 },
+  card: {
+    backgroundColor: "#FFF",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+    elevation: 3,
+  },
   cardImage: { width: "100%", height: 130, borderRadius: 10 },
   cardInfo: { marginTop: 8 },
   cardTitle: { fontSize: 15, fontWeight: "bold", color: "#0033CC" },
