@@ -1,3 +1,4 @@
+import { AntDesign } from "@expo/vector-icons"; // 👈 añadimos para usar la flecha
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useMemo } from "react";
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -13,8 +14,20 @@ export default function Mesas() {
       nombre: "Billar Sacaba Center",
       direccion: "Av. Chapare 456",
       mesas: [
-        { id: 1, nombre: "Mesa 1", tipo: "Americano", precio: "Bs 25/hora", imagen: "https://cdn.pixabay.com/photo/2017/03/20/14/56/pool-table-2157077_1280.jpg" },
-        { id: 2, nombre: "Mesa 2", tipo: "Inglés", precio: "Bs 20/hora", imagen: "https://cdn.pixabay.com/photo/2016/11/19/16/56/billiards-1839029_1280.jpg" },
+        {
+          id: 1,
+          nombre: "Mesa 1",
+          tipo: "Americano",
+          precio: "Bs 25/hora",
+          imagen: "https://cdn.pixabay.com/photo/2017/03/20/14/56/pool-table-2157077_1280.jpg",
+        },
+        {
+          id: 2,
+          nombre: "Mesa 2",
+          tipo: "Inglés",
+          precio: "Bs 20/hora",
+          imagen: "https://cdn.pixabay.com/photo/2016/11/19/16/56/billiards-1839029_1280.jpg",
+        },
       ],
     },
     {
@@ -22,8 +35,20 @@ export default function Mesas() {
       nombre: "Billar Don Beto",
       direccion: "Calle Bolívar 123",
       mesas: [
-        { id: 3, nombre: "Mesa 1", tipo: "Pool Profesional", precio: "Bs 22/hora", imagen: "https://cdn.pixabay.com/photo/2017/03/20/14/56/pool-table-2157077_1280.jpg" },
-        { id: 4, nombre: "Mesa 2", tipo: "Snooker", precio: "Bs 30/hora", imagen: "https://cdn.pixabay.com/photo/2016/11/19/16/56/billiard-1839027_1280.jpg" },
+        {
+          id: 3,
+          nombre: "Mesa 1",
+          tipo: "Pool Profesional",
+          precio: "Bs 22/hora",
+          imagen: "https://cdn.pixabay.com/photo/2017/03/20/14/56/pool-table-2157077_1280.jpg",
+        },
+        {
+          id: 4,
+          nombre: "Mesa 2",
+          tipo: "Snooker",
+          precio: "Bs 30/hora",
+          imagen: "https://cdn.pixabay.com/photo/2016/11/19/16/56/billiard-1839027_1280.jpg",
+        },
       ],
     },
   ];
@@ -43,6 +68,36 @@ export default function Mesas() {
 
   return (
     <ScrollView style={styles.container}>
+      {/* === Flecha para volver a filtros === */}
+      {/* === Encabezado con flecha y texto centrado === */}
+<View
+  style={{
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center", // 👈 centra horizontalmente el contenido
+    marginBottom: 10,
+  }}
+>
+  <TouchableOpacity
+    onPress={() => router.push("/(principal)/inicio/filtros")}
+    style={{ position: "absolute", left: 0 }} // 👈 mantiene la flecha a la izquierda
+  >
+    <AntDesign name="arrow-left" size={24} color="#0033CC" />
+  </TouchableOpacity>
+
+  <Text
+    style={{
+      fontSize: 18,
+      fontWeight: "bold",
+      color: "#0033CC",
+      textAlign: "center",
+    }}
+  >
+    Mesas disponibles
+  </Text>
+</View>
+
+
       <Text style={styles.titulo}>{local.nombre}</Text>
       <Text style={styles.subtitulo}>{local.direccion}</Text>
 
@@ -59,8 +114,12 @@ export default function Mesas() {
 
           <TouchableOpacity
             style={styles.btnReservar}
-            onPress={() => router.push(`/(principal)/inicio/reservar?mesaId=${mesa.id}`)}
- // Luego lo conectas al backend
+            onPress={() =>
+              router.push({
+                pathname: "/(principal)/inicio/reservar",
+                params: { mesaId: mesa.id, localId: local.id },
+              })
+            }
           >
             <Text style={styles.btnText}>Reservar</Text>
           </TouchableOpacity>

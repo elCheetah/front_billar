@@ -14,19 +14,21 @@ import {
 } from "react-native";
 
 export default function ReservarMesa() {
-  const { mesaId } = useLocalSearchParams();
+  // ✅ Recibimos los parámetros enviados desde Mesas
+  const { mesaId, localId } = useLocalSearchParams();
   const router = useRouter();
+
+  // ✅ Definimos variable que guarda el id actual del local
+  const idLocalActual = localId;
 
   const [mostrarQR, setMostrarQR] = useState(false);
   const [mostrarCalendario, setMostrarCalendario] = useState(false);
   const [fecha, setFecha] = useState(new Date());
-  const [imagenComprobante, setImagenComprobante] = useState<string | null>(
-    null
-  );
+  const [imagenComprobante, setImagenComprobante] = useState<string | null>(null);
   const [horaSeleccionada, setHoraSeleccionada] = useState<string | null>(null);
   const [duracion, setDuracion] = useState<string>("");
 
-  // === Datos simulados ===
+  // === Mesas simuladas ===
   const mesas = [
     {
       id: 1,
@@ -50,7 +52,7 @@ export default function ReservarMesa() {
 
   const mesa = mesas.find((m) => m.id === Number(mesaId)) || mesas[0];
 
-  // === Función para cambiar fecha ===
+  // === Funciones ===
   const onChangeFecha = (event: any, selectedDate?: Date) => {
     setMostrarCalendario(false);
     if (selectedDate) {
@@ -64,13 +66,11 @@ export default function ReservarMesa() {
     }
   };
 
-  // === Seleccionar hora ===
   const seleccionarHora = (hora: string) => {
     setHoraSeleccionada(hora);
     setDuracion("1 hora");
   };
 
-  // === Subir comprobante ===
   const subirImagen = async () => {
     const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permiso.granted) {
@@ -91,9 +91,43 @@ export default function ReservarMesa() {
 
   const eliminarImagen = () => setImagenComprobante(null);
 
+  // === Render ===
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.titulo}>Reservar mesa</Text>
+      {/* === FLECHA SIMPLE DE RETROCESO === */}
+      {/* === Encabezado con flecha y texto centrado === */}
+<View
+  style={{
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center", // 👈 centra horizontalmente el texto
+    marginBottom: 10,
+  }}
+>
+  <TouchableOpacity
+    onPress={() =>
+      router.push({
+        pathname: "/(principal)/inicio/mesas",
+        params: { id: idLocalActual }, // ✅ vuelve al local correcto
+      })
+    }
+    style={{ position: "absolute", left: 0 }} // 👈 mantiene la flecha en su sitio
+  >
+    <AntDesign name="arrow-left" size={24} color="#0033CC" />
+  </TouchableOpacity>
+
+  <Text
+    style={{
+      fontSize: 18,
+      fontWeight: "bold",
+      color: "#0033CC",
+      textAlign: "center",
+    }}
+  >
+    Reservar mesa
+  </Text>
+</View>
+
 
       {/* === Información de la mesa === */}
       <View style={styles.mesaCard}>
@@ -114,9 +148,7 @@ export default function ReservarMesa() {
           onPress={() => setMostrarCalendario(true)}
         >
           <AntDesign name="calendar" size={18} color="#0033CC" />
-          <Text style={{ marginLeft: 6 }}>
-            {fecha.toLocaleDateString("es-ES")}
-          </Text>
+          <Text style={{ marginLeft: 6 }}>{fecha.toLocaleDateString("es-ES")}</Text>
         </TouchableOpacity>
 
         {mostrarCalendario && (
@@ -200,10 +232,7 @@ export default function ReservarMesa() {
               source={{ uri: imagenComprobante }}
               style={styles.imagenComprobante}
             />
-            <TouchableOpacity
-              onPress={eliminarImagen}
-              style={styles.btnEliminar}
-            >
+            <TouchableOpacity onPress={eliminarImagen} style={styles.btnEliminar}>
               <Text style={{ color: "#FFF" }}>Eliminar</Text>
             </TouchableOpacity>
           </View>
@@ -257,7 +286,6 @@ const styles = StyleSheet.create({
   mesaInfo: { flex: 1, justifyContent: "center" },
   mesaNombre: { fontWeight: "bold", color: "#0033CC", fontSize: 15 },
   mesaTexto: { fontSize: 13, color: "#444" },
-
   section: {
     backgroundColor: "#FFF",
     borderRadius: 12,
@@ -304,7 +332,6 @@ const styles = StyleSheet.create({
   },
   totalText: { fontWeight: "bold", color: "#444" },
   totalMonto: { fontWeight: "bold", color: "#009900" },
-
   descargarQR: { marginTop: 6 },
   descargarQRText: {
     color: "#E63946",
@@ -312,16 +339,8 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
     textAlign: "right",
   },
-  qrContainer: {
-    alignItems: "center",
-    marginTop: 10,
-  },
-  qrImagen: {
-    width: 180,
-    height: 180,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
+  qrContainer: { alignItems: "center", marginTop: 10 },
+  qrImagen: { width: 180, height: 180, borderRadius: 8, marginBottom: 8 },
   btnDescargar: {
     backgroundColor: "#0052FF",
     paddingVertical: 6,
@@ -339,15 +358,8 @@ const styles = StyleSheet.create({
     padding: 10,
     marginTop: 6,
   },
-  imagenContainer: {
-    alignItems: "center",
-    marginTop: 8,
-  },
-  imagenComprobante: {
-    width: 200,
-    height: 200,
-    borderRadius: 8,
-  },
+  imagenContainer: { alignItems: "center", marginTop: 8 },
+  imagenComprobante: { width: 200, height: 200, borderRadius: 8 },
   btnEliminar: {
     backgroundColor: "#E63946",
     paddingVertical: 6,
