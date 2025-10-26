@@ -247,7 +247,12 @@ export default function Filtros() {
 
 /* === ESTILOS === */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F5F9FF", padding: 14 },
+    container: { 
+    flex: 1, 
+    backgroundColor: "#F5F9FF", 
+    padding: 14,
+    paddingBottom: 50, // 👈 agregado para que no se tape con los gestos del celular
+  },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
