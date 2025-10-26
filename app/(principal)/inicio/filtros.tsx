@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   Alert,
   Image,
@@ -18,8 +18,10 @@ import MapView, { Callout, Circle, Marker } from "react-native-maps";
 export default function Filtros() {
   const router = useRouter();
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
-  const [mostrarMapaSolo, setMostrarMapaSolo] = useState(false); // 👈 nuevo estado
+  const [mostrarMapaSolo, setMostrarMapaSolo] = useState(false);
   const [distancia, setDistancia] = useState(5);
+  const [tipoMesa, setTipoMesa] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState(""); // 👈 nuevo estado del buscador
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const mapRef = useRef<MapView | null>(null);
 
@@ -30,6 +32,7 @@ export default function Filtros() {
       direccion: "Av. Chapare 456",
       distancia: "1.2 km",
       imagen: "https://cdn.pixabay.com/photo/2017/03/20/14/56/pool-table-2157077_1280.jpg",
+      tipo: "Americano",
       lat: -17.3985,
       lon: -66.0392,
     },
@@ -39,10 +42,19 @@ export default function Filtros() {
       direccion: "Calle Bolívar 123",
       distancia: "0.9 km",
       imagen: "https://cdn.pixabay.com/photo/2016/11/19/16/56/billiards-1839029_1280.jpg",
+      tipo: "Inglés",
       lat: -17.396,
       lon: -66.037,
     },
   ];
+
+  // 🧠 Filtrado visual del buscador (no afecta backend)
+  const localesFiltrados = useMemo(() => {
+    if (!busqueda.trim()) return locales;
+    return locales.filter((local) =>
+      local.nombre.toLowerCase().includes(busqueda.toLowerCase())
+    );
+  }, [busqueda]);
 
   const obtenerUbicacion = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -58,6 +70,15 @@ export default function Filtros() {
       latitudeDelta: 0.02,
       longitudeDelta: 0.02,
     });
+  };
+
+  const borrarFiltros = () => {
+    setDistancia(5);
+    setTipoMesa(null);
+    setLocation(null);
+    setBusqueda(""); // 👈 también limpia el buscador
+    setMostrarFiltros(false);
+    Alert.alert("Filtros restablecidos");
   };
 
   const regionInicial = {
@@ -94,23 +115,23 @@ export default function Filtros() {
       </View>
 
       {/* === Barra de búsqueda === */}
-      {!mostrarMapaSolo && (
-        <View style={styles.searchContainer}>
-          <TextInput
-            style={styles.input}
-            placeholder="Buscar local..."
-            placeholderTextColor="#888"
-          />
-          <TouchableOpacity
-            style={styles.filterBtn}
-            onPress={() => setMostrarFiltros(!mostrarFiltros)}
-          >
-            <Feather name="sliders" size={20} color="#0052FF" />
-          </TouchableOpacity>
-        </View>
-      )}
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.input}
+          placeholder="Buscar local..."
+          placeholderTextColor="#888"
+          value={busqueda}
+          onChangeText={setBusqueda}
+        />
+        <TouchableOpacity
+          style={styles.filterBtn}
+          onPress={() => setMostrarFiltros(!mostrarFiltros)}
+        >
+          <Feather name="sliders" size={20} color="#0052FF" />
+        </TouchableOpacity>
+      </View>
 
-      {/* === FILTROS === */}
+      {/* === FILTROS + MAPA === */}
       {(!mostrarMapaSolo && mostrarFiltros) || mostrarMapaSolo ? (
         <View style={styles.filtrosContainer}>
           <Text style={styles.filtroTitulo}>Filtros</Text>
@@ -124,11 +145,16 @@ export default function Filtros() {
               <Text style={styles.filtroText}>Distancia: {distancia.toFixed(1)} Km</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.filtroBtn}>
-              <Text style={styles.filtroText}>Tipo de mesa</Text>
+            <TouchableOpacity
+              style={styles.filtroBtn}
+              onPress={() => setTipoMesa(tipoMesa === "Americano" ? "Inglés" : "Americano")}
+            >
+              <Text style={styles.filtroText}>
+                Tipo de mesa: {tipoMesa ?? "Todos"}
+              </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity>
+            <TouchableOpacity onPress={borrarFiltros}>
               <Text style={styles.linkText}>Borrar filtros</Text>
             </TouchableOpacity>
           </View>
@@ -148,7 +174,12 @@ export default function Filtros() {
           </View>
 
           {/* === MAPA === */}
-          <View style={styles.mapContainer}>
+          <View
+            style={[
+              styles.mapContainer,
+              mostrarMapaSolo && { height: 450 },
+            ]}
+          >
             <MapView ref={mapRef} style={styles.map} initialRegion={regionInicial}>
               {location && (
                 <Circle
@@ -161,7 +192,7 @@ export default function Filtros() {
 
               {location && <Marker coordinate={location} title="Tu ubicación" pinColor="#0052FF" />}
 
-              {locales.map((local) => (
+              {localesFiltrados.map((local) => (
                 <Marker
                   key={local.id}
                   coordinate={{ latitude: local.lat, longitude: local.lon }}
@@ -194,7 +225,7 @@ export default function Filtros() {
 
       {/* === Lista de locales === */}
       {!mostrarMapaSolo &&
-        locales.map((local) => (
+        localesFiltrados.map((local) => (
           <View key={local.id} style={styles.card}>
             <Image source={{ uri: local.imagen }} style={styles.cardImage} />
             <View style={styles.cardInfo}>
