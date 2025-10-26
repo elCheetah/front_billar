@@ -211,7 +211,7 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
               label="Historial de Reservas"
               icon="calendar"
               active={pathname.endsWith("/propietario/historial")}
-              onPress={() => go("/(principal)/propietario/historial")}
+              onPress={() => go("/(principal)/historial/historial")}
             />
 
             <NavParent label="Gestión del Local" icon="settings" open={openGestion} onToggle={() => toggle(setOpenGestion)} />
