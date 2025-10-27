@@ -240,7 +240,7 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
                 <SubItem
                   label="Mi QR de Pago"
                   active={pathname.endsWith("/propietario/local/qr")}
-                  onPress={() => go("/(principal)/propietario/local/qr")}
+                  onPress={() => go("/(principal)/local/miQR")}
                 />
               </SubMenu>
             )}
