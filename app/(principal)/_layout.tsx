@@ -220,22 +220,22 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
                 <SubItem
                   label="Datos del Local"
                   active={pathname.endsWith("/propietario/local/datos")}
-                  onPress={() => go("/(principal)/propietario/local/datos")}
+                  onPress={() => go("/(principal)/local/configurarDatosLocal")}
                 />
                 <SubItem
                   label="Mesas"
                   active={pathname.endsWith("/propietario/local/mesas")}
-                  onPress={() => go("/(principal)/propietario/local/mesas")}
+                  onPress={() => go("/(principal)/local/configurarMesas")}
                 />
                 <SubItem
                   label="Horarios"
                   active={pathname.endsWith("/propietario/local/horarios")}
-                  onPress={() => go("/(principal)/propietario/local/horarios")}
+                  onPress={() => go("/(principal)/local/configurarHorarios")}
                 />
                 <SubItem
                   label="Descuentos"
                   active={pathname.endsWith("/propietario/local/descuentos")}
-                  onPress={() => go("/(principal)/propietario/local/descuentos")}
+                  onPress={() => go("/(principal)/local/establecerDescuento")}
                 />
                 <SubItem
                   label="Mi QR de Pago"
