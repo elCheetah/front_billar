@@ -1,16 +1,17 @@
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import * as ImagePicker from "expo-image-picker";
+import React, { useEffect, useState } from "react";
 import {
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
-// 🎨 Paleta de colores
 const Colores = {
   azul: "#0052FF",
   azulClaro: "#E8F1FF",
@@ -23,170 +24,228 @@ const Colores = {
 };
 
 export default function PerfilCliente() {
-  const usuario = {
-    nombre: "Carlos Mendoza",
-    correo: "carlosmendoza@gmail.com",
-    telefono: "76543210",
+  const [usuario, setUsuario] = useState({
+    nombre: "Saul",
+    primerApellido: "Efe",
+    segundoApellido: "Ala",
+    correo: "correo@gmail.com",
+    celular: "55673456",
+    fechaRegistro: "10/30/40",
     foto: "https://cdn-icons-png.flaticon.com/512/149/149071.png",
-    fechaRegistro: "10/08/2024",
+  });
+
+  const [editable, setEditable] = useState(false);
+  const [modificado, setModificado] = useState(false);
+  const [nuevaFoto, setNuevaFoto] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        alert("⚠️ Se necesitan permisos para acceder a la galería.");
+      }
+    })();
+  }, []);
+
+  const seleccionarImagen = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 1,
+    });
+    if (!result.canceled) {
+      setNuevaFoto(result.assets[0].uri);
+      setModificado(true);
+    }
+  };
+
+  const habilitarEdicion = () => {
+    setEditable(true);
+  };
+
+  const guardarCambios = () => {
+    Alert.alert("✅ Cambios guardados", "El perfil ha sido actualizado.");
+    setEditable(false);
+    setModificado(false);
   };
 
   const cerrarSesion = () => {
-    Alert.alert(
-      "Cerrar Sesión",
-      "¿Deseas salir de tu cuenta?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Sí, salir", onPress: () => console.log("Sesión cerrada") },
-      ]
-    );
+    Alert.alert("Cerrar Sesión", "¿Deseas salir de tu cuenta?", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Sí, salir", onPress: () => console.log("Sesión cerrada") },
+    ]);
+  };
+
+  const fotoActual = nuevaFoto || usuario.foto;
+
+  // 🧠 Validar valores antes de guardar
+  const handleChange = (campo: string, valor: string) => {
+    let nuevoValor = valor;
+
+    if (["nombre", "primerApellido", "segundoApellido"].includes(campo)) {
+      // Solo letras y espacios
+      nuevoValor = valor.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, "");
+    }
+
+    if (campo === "celular") {
+      // Solo números
+      nuevoValor = valor.replace(/[^0-9]/g, "");
+    }
+
+    setUsuario((prev) => ({ ...prev, [campo]: nuevoValor }));
+    setModificado(true);
   };
 
   return (
     <ScrollView style={styles.container}>
-      {/* Cabecera del perfil */}
-      <View style={styles.cardPerfil}>
-        <Image source={{ uri: usuario.foto }} style={styles.fotoPerfil} />
-        <View style={styles.infoPerfil}>
-          <Text style={styles.nombre}>{usuario.nombre}</Text>
-          <Text style={styles.correo}>{usuario.correo}</Text>
-          <Text style={styles.telefono}>📞 {usuario.telefono}</Text>
-          <Text style={styles.fecha}>
-            Miembro desde {usuario.fechaRegistro}
-          </Text>
-        </View>
-      </View>
-
-      {/* Opciones del perfil */}
-      <Text style={styles.subtitulo}>Opciones</Text>
-
-      <View style={styles.opciones}>
-        <TouchableOpacity style={styles.item}>
-          <Ionicons name="time-outline" size={22} color={Colores.azul} />
-          <Text style={styles.textoItem}>Historial de Reservas</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.item}>
-          <Ionicons name="card-outline" size={22} color={Colores.azul} />
-          <Text style={styles.textoItem}>Métodos de Pago</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.item}>
-          <Ionicons name="settings-outline" size={22} color={Colores.azul} />
-          <Text style={styles.textoItem}>Configuración</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.item}>
-          <Ionicons name="shield-checkmark-outline" size={22} color={Colores.azul} />
-          <Text style={styles.textoItem}>Política de Privacidad</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.item}>
-          <Ionicons name="help-circle-outline" size={22} color={Colores.azul} />
-          <Text style={styles.textoItem}>Ayuda y Soporte</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.item, styles.itemSalir]} onPress={cerrarSesion}>
-          <Ionicons name="log-out-outline" size={22} color={Colores.rojo} />
-          <Text style={[styles.textoItem, { color: Colores.rojo }]}>
-            Cerrar Sesión
-          </Text>
+      <View style={styles.fotoContainer}>
+        <Image source={{ uri: fotoActual }} style={styles.fotoPerfil} />
+        <TouchableOpacity style={styles.botonFoto} onPress={seleccionarImagen}>
+          <Ionicons name="camera" size={18} color={Colores.blanco} />
         </TouchableOpacity>
       </View>
 
-      {/* Botón final */}
-      <TouchableOpacity style={styles.botonEditar}>
-        <Ionicons name="create-outline" size={20} color={Colores.blanco} />
-        <Text style={styles.textoEditar}>Editar Perfil</Text>
+      <Text style={styles.titulo}>Perfil</Text>
+
+      <View style={styles.rolContainer}>
+        <Text style={styles.rolTexto}>CLIENTE</Text>
+        <TouchableOpacity onPress={habilitarEdicion}>
+          <Ionicons name="create-outline" size={18} color={Colores.azulOscuro} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.datosContainer}>
+        <Campo label="Nombre" value={usuario.nombre} editable={editable} onChangeText={(v) => handleChange("nombre", v)} />
+        <Campo label="Primer Apellido" value={usuario.primerApellido} editable={editable} onChangeText={(v) => handleChange("primerApellido", v)} />
+        <Campo label="Segundo Apellido" value={usuario.segundoApellido} editable={editable} onChangeText={(v) => handleChange("segundoApellido", v)} />
+
+        {/* ❌ Correo no editable */}
+        <Campo label="Correo" value={usuario.correo} editable={false} onChangeText={() => {}} />
+
+        <Campo label="Celular" value={usuario.celular} editable={editable} onChangeText={(v) => handleChange("celular", v)} />
+
+        <Text style={styles.fecha}>Miembro desde: {usuario.fechaRegistro}</Text>
+      </View>
+
+      <TouchableOpacity
+        style={[styles.botonGuardar, !modificado && { backgroundColor: "#ccc" }]}
+        disabled={!modificado}
+        onPress={guardarCambios}
+      >
+        <Ionicons name="save-outline" size={20} color={Colores.blanco} />
+        <Text style={styles.textoGuardar}>Guardar Cambios</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.botonSalir} onPress={cerrarSesion}>
+        <Ionicons name="log-out-outline" size={20} color={Colores.rojo} />
+        <Text style={styles.textoSalir}>Cerrar Sesión</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
-// 💅 Estilos
+// 🔹 Campo genérico
+function Campo({
+  label,
+  value,
+  editable,
+  onChangeText,
+}: {
+  label: string;
+  value: string;
+  editable: boolean;
+  onChangeText: (v: string) => void;
+}) {
+  return (
+    <View style={styles.campo}>
+      <Text style={styles.label}>{label}</Text>
+      {editable ? (
+        <TextInput
+          style={styles.input}
+          value={value}
+          onChangeText={onChangeText}
+        />
+      ) : (
+        <Text style={styles.valor}>{value}</Text>
+      )}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colores.grisFondo,
-    padding: 16,
-  },
-  cardPerfil: {
-    backgroundColor: Colores.blanco,
-    borderRadius: 12,
-    flexDirection: "row",
-    padding: 16,
-    alignItems: "center",
-    elevation: 3,
-    marginBottom: 20,
-  },
+  container: { flex: 1, backgroundColor: Colores.grisFondo, padding: 20 },
+  fotoContainer: { alignItems: "center", marginBottom: 15 },
   fotoPerfil: {
-    width: 80,
-    height: 80,
-    borderRadius: 50,
-    marginRight: 16,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    borderWidth: 2,
+    borderColor: Colores.azul,
   },
-  infoPerfil: {
-    flex: 1,
+  botonFoto: {
+    position: "absolute",
+    bottom: 5,
+    right: "35%",
+    backgroundColor: Colores.azul,
+    borderRadius: 15,
+    padding: 6,
   },
-  nombre: {
+  titulo: {
     fontSize: 18,
+    textAlign: "center",
     fontWeight: "bold",
+    marginBottom: 10,
     color: Colores.azulOscuro,
   },
-  correo: {
-    color: Colores.grisTexto,
-    fontSize: 13,
-  },
-  telefono: {
-    color: Colores.grisTexto,
-    fontSize: 13,
-    marginTop: 2,
-  },
-  fecha: {
-    color: Colores.verde,
-    fontSize: 12,
-    marginTop: 4,
-  },
-  subtitulo: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: Colores.azul,
-    marginBottom: 8,
-  },
-  opciones: {
-    backgroundColor: Colores.blanco,
-    borderRadius: 10,
-    padding: 6,
-    marginBottom: 20,
-    elevation: 2,
-  },
-  item: {
+  rolContainer: {
     flexDirection: "row",
+    justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    backgroundColor: Colores.azulClaro,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  rolTexto: { fontWeight: "bold", letterSpacing: 2, color: Colores.azulOscuro },
+  datosContainer: {
+    backgroundColor: Colores.blanco,
+    borderRadius: 12,
+    padding: 16,
+    elevation: 2,
+    marginBottom: 20,
+  },
+  campo: { flexDirection: "row", marginBottom: 8 },
+  label: { width: 140, color: Colores.azulOscuro, fontWeight: "bold" },
+  valor: { flex: 1, color: Colores.grisTexto },
+  input: {
+    flex: 1,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    borderBottomColor: Colores.azul,
+    paddingVertical: 2,
   },
-  textoItem: {
-    fontSize: 14,
-    color: Colores.azul,
-    fontWeight: "500",
-    marginLeft: 10,
-  },
-  itemSalir: {
-    borderBottomWidth: 0,
-  },
-  botonEditar: {
+  fecha: { marginTop: 10, textAlign: "right", color: Colores.grisTexto },
+  botonGuardar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Colores.azul,
+    backgroundColor: Colores.verde,
     paddingVertical: 10,
     borderRadius: 10,
   },
-  textoEditar: {
+  textoGuardar: {
     color: Colores.blanco,
+    fontWeight: "bold",
+    fontSize: 14,
+    marginLeft: 6,
+  },
+  botonSalir: {
+    marginTop: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  textoSalir: {
+    color: Colores.rojo,
     fontWeight: "bold",
     fontSize: 14,
     marginLeft: 6,
