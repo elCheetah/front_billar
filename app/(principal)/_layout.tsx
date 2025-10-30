@@ -100,8 +100,8 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
 
   // ruta Inicio por rol
   const rutaInicio: string = useMemo(() => {
-    if (rol === "ADMINISTRADOR") return "/(principal)/admin/resumen";
-    if (rol === "PROPIETARIO") return "/(principal)/propietario/panel";
+    if (rol === "ADMINISTRADOR") return "/(principal)/dashboard";
+    if (rol === "PROPIETARIO") return "/(principal)/dashboard";
     return "/(principal)/inicio/filtros";
   }, [rol]);
 
