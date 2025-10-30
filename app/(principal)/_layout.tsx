@@ -249,7 +249,7 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
               label="Devoluciones"
               icon="rotate-ccw"
               active={pathname.endsWith("/propietario/devoluciones")}
-              onPress={() => go("/(principal)/propietario/devoluciones")}
+              onPress={() => go("/(principal)/solicitudes/devoluciones")}
             />
           </>
         )}
@@ -275,6 +275,7 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
                   active={pathname.endsWith("/cliente/reservas/confirmadas")}
                   onPress={() => go("/(principal)/solicitudes/confirmadas")}
                 />
+              
               </SubMenu>
             )}
 
