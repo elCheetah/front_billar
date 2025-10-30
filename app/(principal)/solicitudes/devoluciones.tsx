@@ -11,7 +11,7 @@ import {
   Text,
   TouchableOpacity,
   View,
-  Image, // ← NUEVO: para mostrar imagen estática
+  Image,
 } from "react-native";
 
 // ──────────────────────────────────────────────────────────────
@@ -45,7 +45,6 @@ interface Reserva {
 export default function Devolver() {
   const router = useRouter();
 
-  // 3 ejemplos de reservas canceladas
   const [reservas] = useState<Reserva[]>([
     {
       id: 1,
@@ -94,7 +93,6 @@ export default function Devolver() {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedReserva, setSelectedReserva] = useState<Reserva | null>(null);
 
-  // ──────────────────────────────────────────────────────────
   const handleBack = () => router.back();
 
   const handleDevolver = (reserva: Reserva) => {
@@ -158,7 +156,6 @@ export default function Devolver() {
 
   const reservasCanceladas = reservas.filter((r) => r.estado === "canceled");
 
-  // ──────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
       {/* Botón volver */}
@@ -186,7 +183,7 @@ export default function Devolver() {
             <View style={styles.infoContainer}>
               <Text style={styles.infoLabel}>Monto a devolver:</Text>
               <Text style={styles.infoValue}>
-                Bs{selectedReserva?.montoPenalizado}
+                {selectedReserva?.montoPenalizado}
               </Text>
             </View>
 
@@ -195,9 +192,11 @@ export default function Devolver() {
               {/* QR CLICKEABLE (subir) */}
               <TouchableOpacity style={styles.qrTouchable} onPress={subirQR}>
                 <View style={styles.qrWrapper}>
-                  {/* IMAGEN ESTÁTICA DE QR (sin importar librería) */}
+                  {/* IMAGEN DE QR REAL (NO VACÍA) */}
                   <Image
-                    source={require("./assets/qr-placeholder.png")} // ← Coloca tu QR aquí
+                    source={{
+                      uri: "https://api.qrserver.com/v1/create-qr-code/?data=https://example.com&size=200x200.png", // QR lleno y legible
+                    }}
                     style={{ width: 130, height: 130 }}
                     resizeMode="contain"
                   />
@@ -205,7 +204,7 @@ export default function Devolver() {
                 <Text style={styles.qrLabel}>Toca para subir QR</Text>
               </TouchableOpacity>
 
-              {/* DESCARGAR QR (texto clickeable) */}
+              {/* DESCARGAR QR */}
               <TouchableOpacity style={styles.downloadHint} onPress={descargarQR}>
                 <Ionicons name="download-outline" size={16} color={Colores.azulOscuro} />
                 <Text style={styles.downloadText}>Descargar QR</Text>
@@ -405,7 +404,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 
-  // ──────── MODAL ────────
+  // MODAL
   modalContainer: {
     flex: 1,
     justifyContent: "center",
@@ -444,7 +443,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 
-  // SECCIÓN QR CENTRADA
+  // SECCIÓN QR
   qrSection: {
     alignItems: "center",
     width: "100%",
@@ -467,8 +466,6 @@ const styles = StyleSheet.create({
     color: Colores.azulOscuro,
     fontWeight: "600",
   },
-
-  // DESCARGAR QR (debajo)
   downloadHint: {
     flexDirection: "row",
     alignItems: "center",
