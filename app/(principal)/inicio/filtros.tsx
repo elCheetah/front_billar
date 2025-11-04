@@ -501,7 +501,7 @@ export default function Filtros() {
                     source={{
                       uri:
                         activeLocal.imagen ||
-                        "https://via.placeholder.com/600x400?text=Billar",
+                        "https://st4.depositphotos.com/31915596/40704/v/1600/depositphotos_407049528-stock-illustration-player-billiards-logo-design-vector.jpg",
                     }}
                     style={styles.bubbleImg}
                   />
@@ -553,7 +553,7 @@ export default function Filtros() {
                       onPress={() => {
                         setActiveLocal(null);
                         router.push(
-                          `/(principal)/inicio/mesas?id=${activeLocal.id_local}`
+                          `/(principal)/inicio/mesas?idLocal=${activeLocal.id_local}`
                         );
                       }}
                     >
@@ -581,7 +581,7 @@ export default function Filtros() {
                   source={{
                     uri:
                       local.imagen ||
-                      "https://via.placeholder.com/600x400?text=Billar",
+                      "https://st4.depositphotos.com/31915596/40704/v/1600/depositphotos_407049528-stock-illustration-player-billiards-logo-design-vector.jpg",
                   }}
                   style={styles.cardImage}
                 />
@@ -630,7 +630,7 @@ export default function Filtros() {
               <TouchableOpacity
                 style={styles.btnAzul}
                 onPress={() =>
-                  router.push(`/(principal)/inicio/mesas?id=${local.id_local}`)
+                  router.push(`/(principal)/inicio/mesas?idLocal=${local.id_local}`)
                 }
               >
                 <Text style={styles.btnAzulText}>Ver mesas disponibles</Text>

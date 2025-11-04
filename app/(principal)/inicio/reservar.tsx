@@ -4,13 +4,13 @@ import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export default function ReservarMesa() {
@@ -35,8 +35,8 @@ export default function ReservarMesa() {
       nombre: "Mesa 1",
       tipo: "Americano",
       precio: 25,
-      imagen:
-        "https://cdn.pixabay.com/photo/2017/03/20/14/56/pool-table-2157077_1280.jpg",
+      imagenes:
+        "https://cdn.pixabay.com/photo/2017/03/20/14/56/pool-table-2157077_1280.jpg",//aqui va recuperarse varias imagenes eso encima de todo se va mostrar un carousel que cambia en tiempo de 3 segundos cada uno automaticamente
       horasDisponibles: ["10:00", "12:00", "14:00", "16:00", "18:00", "19:00"],
     },
     {
