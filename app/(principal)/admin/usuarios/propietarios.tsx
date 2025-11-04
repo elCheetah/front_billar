@@ -19,31 +19,31 @@ const Colores = {
   rojo: "#E53935",
 };
 
-export default function Locales() {
-  const [locales, setLocales] = useState([
-    { id: 1, nombre: "Billar Central", celular: "76432100", estado: "Activo" },
-    { id: 2, nombre: "El Rinconcito", celular: "71122334", estado: "Suspendido" },
-    { id: 3, nombre: "King Pool", celular: "78987654", estado: "Activo" },
-    { id: 4, nombre: "Cuevas Club", celular: "75670012", estado: "Activo" },
+export default function Clientes() {
+  const [clientes, setClientes] = useState([
+    { id: 1, nombre: "Juan Pérez", celular: "76543210", estado: "Activo" },
+    { id: 2, nombre: "María López", celular: "71234567", estado: "Suspendido" },
+    { id: 3, nombre: "Carlos Gómez", celular: "78901234", estado: "Activo" },
+    { id: 4, nombre: "Lucía Rivas", celular: "75678901", estado: "Activo" },
   ]);
 
   const [busqueda, setBusqueda] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
-  const [localSeleccionado, setLocalSeleccionado] = useState<any>(null);
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<any>(null);
 
-  const localesFiltrados = locales.filter((l) =>
-    l.nombre.toLowerCase().includes(busqueda.toLowerCase())
+  const clientesFiltrados = clientes.filter((c) =>
+    c.nombre.toLowerCase().includes(busqueda.toLowerCase())
   );
 
-  const abrirModal = (local: any) => {
-    setLocalSeleccionado(local);
+  const abrirModal = (cliente: any) => {
+    setClienteSeleccionado(cliente);
     setModalVisible(true);
   };
 
   const cambiarEstado = (nuevoEstado: string) => {
-    setLocales((prev) =>
-      prev.map((l) =>
-        l.id === localSeleccionado.id ? { ...l, estado: nuevoEstado } : l
+    setClientes((prev) =>
+      prev.map((c) =>
+        c.id === clienteSeleccionado.id ? { ...c, estado: nuevoEstado } : c
       )
     );
     setModalVisible(false);
@@ -51,13 +51,13 @@ export default function Locales() {
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.titulo}>Lista de Locales</Text>
+      <Text style={styles.titulo}>Lista de Propietarios</Text>
 
       {/* 🔍 BUSCADOR ARRIBA */}
       <Text style={styles.searchLabel}>Buscador:</Text>
       <View style={styles.searchBar}>
         <TextInput
-          placeholder="🔍 Buscar local..."
+          placeholder="🔍 Buscar cliente..."
           placeholderTextColor="#888"
           style={styles.searchInput}
           value={busqueda}
@@ -67,31 +67,31 @@ export default function Locales() {
 
       {/* 🧾 TABLA */}
       <View style={styles.headerRow}>
-        <Text style={[styles.headerText, { flex: 2 }]}>Nombre de Local</Text>
+        <Text style={[styles.headerText, { flex: 2 }]}>Nombre de propietarios</Text>
         <Text style={[styles.headerText, { flex: 1 }]}>Celular</Text>
         <Text style={[styles.headerText, { flex: 1 }]}>Estado</Text>
         <Text style={[styles.headerText, { flex: 1 }]}>Acción</Text>
       </View>
 
-      {localesFiltrados.map((l) => (
-        <View key={l.id} style={styles.dataRow}>
-          <Text style={[styles.dataText, { flex: 2, textAlign: "left" }]}>{l.nombre}</Text>
-          <Text style={[styles.dataText, { flex: 1 }]}>{l.celular}</Text>
+      {clientesFiltrados.map((c) => (
+        <View key={c.id} style={styles.dataRow}>
+          <Text style={[styles.dataText, { flex: 2, textAlign: "left" }]}>{c.nombre}</Text>
+          <Text style={[styles.dataText, { flex: 1 }]}>{c.celular}</Text>
           <Text
             style={[
               styles.dataText,
               {
                 flex: 1,
-                color: l.estado === "Activo" ? "green" : Colores.rojo,
+                color: c.estado === "Activo" ? "green" : Colores.rojo,
                 fontWeight: "bold",
               },
             ]}
           >
-            {l.estado}
+            {c.estado}
           </Text>
           <TouchableOpacity
             style={[styles.accionBtn, { backgroundColor: Colores.azul }]}
-            onPress={() => abrirModal(l)}
+            onPress={() => abrirModal(c)}
           >
             <Text style={styles.accionTxt}>Cambiar</Text>
           </TouchableOpacity>
@@ -109,11 +109,11 @@ export default function Locales() {
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Cambiar estado del Local</Text>
+            <Text style={styles.modalTitle}>Cambiar estado</Text>
             <Text style={styles.modalText}>
-              Local:{" "}
+              Cliente:{" "}
               <Text style={{ fontWeight: "bold" }}>
-                {localSeleccionado?.nombre}
+                {clienteSeleccionado?.nombre}
               </Text>
             </Text>
             <Text style={styles.modalText}>
@@ -121,13 +121,13 @@ export default function Locales() {
               <Text
                 style={{
                   color:
-                    localSeleccionado?.estado === "Activo"
+                    clienteSeleccionado?.estado === "Activo"
                       ? "green"
                       : Colores.rojo,
                   fontWeight: "bold",
                 }}
               >
-                {localSeleccionado?.estado}
+                {clienteSeleccionado?.estado}
               </Text>
             </Text>
 
@@ -159,7 +159,6 @@ export default function Locales() {
   );
 }
 
-/* ======== ESTILOS ======== */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
