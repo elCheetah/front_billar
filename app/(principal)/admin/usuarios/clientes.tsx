@@ -1,5 +1,13 @@
 import React, { useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 const Colores = {
   azul: "#0052FF",
@@ -8,56 +16,145 @@ const Colores = {
   negro: "#000000",
   borde: "#DDE1F1",
   texto: "#333333",
+  rojo: "#E53935",
 };
 
 export default function Clientes() {
-  // Simulación de datos
-  const [clientes] = useState([
-    { id: 1, nombre: "Juan Pérez", celular: "76543210", accion: "Activo" },
-    { id: 2, nombre: "María López", celular: "71234567", accion: "Suspendido" },
-    { id: 3, nombre: "Carlos Gómez", celular: "78901234", accion: "Activo" },
-    { id: 4, nombre: "Lucía Rivas", celular: "75678901", accion: "Activo" },
+  const [clientes, setClientes] = useState([
+    { id: 1, nombre: "Juan Pérez", celular: "76543210", estado: "Activo" },
+    { id: 2, nombre: "María López", celular: "71234567", estado: "Suspendido" },
+    { id: 3, nombre: "Carlos Gómez", celular: "78901234", estado: "Activo" },
+    { id: 4, nombre: "Lucía Rivas", celular: "75678901", estado: "Activo" },
   ]);
+
+  const [busqueda, setBusqueda] = useState("");
+  const [modalVisible, setModalVisible] = useState(false);
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<any>(null);
+
+  const clientesFiltrados = clientes.filter((c) =>
+    c.nombre.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  const abrirModal = (cliente: any) => {
+    setClienteSeleccionado(cliente);
+    setModalVisible(true);
+  };
+
+  const cambiarEstado = (nuevoEstado: string) => {
+    setClientes((prev) =>
+      prev.map((c) =>
+        c.id === clienteSeleccionado.id ? { ...c, estado: nuevoEstado } : c
+      )
+    );
+    setModalVisible(false);
+  };
 
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.titulo}>Lista de Clientes</Text>
 
-      {/* Encabezado */}
+      {/* 🔍 BUSCADOR ARRIBA */}
+      <Text style={styles.searchLabel}>Buscador:</Text>
+      <View style={styles.searchBar}>
+        <TextInput
+          placeholder="🔍 Buscar cliente..."
+          placeholderTextColor="#888"
+          style={styles.searchInput}
+          value={busqueda}
+          onChangeText={setBusqueda}
+        />
+      </View>
+
+      {/* 🧾 TABLA */}
       <View style={styles.headerRow}>
         <Text style={[styles.headerText, { flex: 2 }]}>Nombre de Cliente</Text>
         <Text style={[styles.headerText, { flex: 1 }]}>Celular</Text>
         <Text style={[styles.headerText, { flex: 1 }]}>Estado</Text>
+        <Text style={[styles.headerText, { flex: 1 }]}>Acción</Text>
       </View>
 
-      {/* Filas */}
-      {clientes.map((c) => (
+      {clientesFiltrados.map((c) => (
         <View key={c.id} style={styles.dataRow}>
-          <Text style={[styles.dataText, { flex: 2 }]}>{c.nombre}</Text>
+          <Text style={[styles.dataText, { flex: 2, textAlign: "left" }]}>{c.nombre}</Text>
           <Text style={[styles.dataText, { flex: 1 }]}>{c.celular}</Text>
           <Text
             style={[
               styles.dataText,
-              { flex: 1, color: c.accion === "Activo" ? "green" : "red", fontWeight: "bold" },
+              {
+                flex: 1,
+                color: c.estado === "Activo" ? "green" : Colores.rojo,
+                fontWeight: "bold",
+              },
             ]}
           >
-            {c.accion}
+            {c.estado}
           </Text>
+          <TouchableOpacity
+            style={[styles.accionBtn, { backgroundColor: Colores.azul }]}
+            onPress={() => abrirModal(c)}
+          >
+            <Text style={styles.accionTxt}>Cambiar</Text>
+          </TouchableOpacity>
         </View>
       ))}
 
-      {/* Paginación */}
+      {/* PAGINACIÓN */}
       <View style={styles.pagination}>
         <Text style={styles.pageBtn}>{"<"}</Text>
         <Text style={styles.pageNumber}>1</Text>
         <Text style={styles.pageBtn}>{">"}</Text>
       </View>
 
-      {/* Buscador (decorativo por ahora) */}
-      <Text style={styles.searchLabel}>Buscador:</Text>
-      <View style={styles.searchBar}>
-        <Text style={styles.placeholder}>🔍 Buscar cliente...</Text>
-      </View>
+      {/* 🪟 MODAL CAMBIAR ESTADO */}
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Cambiar estado</Text>
+            <Text style={styles.modalText}>
+              Cliente:{" "}
+              <Text style={{ fontWeight: "bold" }}>
+                {clienteSeleccionado?.nombre}
+              </Text>
+            </Text>
+            <Text style={styles.modalText}>
+              Estado actual:{" "}
+              <Text
+                style={{
+                  color:
+                    clienteSeleccionado?.estado === "Activo"
+                      ? "green"
+                      : Colores.rojo,
+                  fontWeight: "bold",
+                }}
+              >
+                {clienteSeleccionado?.estado}
+              </Text>
+            </Text>
+
+            <View style={styles.modalBtns}>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: "green" }]}
+                onPress={() => cambiarEstado("Activo")}
+              >
+                <Text style={styles.modalBtnText}>Activar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, { backgroundColor: Colores.rojo }]}
+                onPress={() => cambiarEstado("Suspendido")}
+              >
+                <Text style={styles.modalBtnText}>Suspender</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.modalCerrar, { backgroundColor: Colores.azul }]}
+              onPress={() => setModalVisible(false)}
+            >
+              <Text style={styles.modalCerrarTxt}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -74,6 +171,23 @@ const styles = StyleSheet.create({
     color: Colores.azul,
     marginBottom: 14,
     textAlign: "center",
+  },
+  searchLabel: {
+    fontWeight: "bold",
+    color: Colores.negro,
+    marginBottom: 6,
+  },
+  searchBar: {
+    borderWidth: 1,
+    borderColor: Colores.borde,
+    borderRadius: 6,
+    marginBottom: 14,
+    backgroundColor: Colores.grisClaro,
+  },
+  searchInput: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 15,
   },
   headerRow: {
     flexDirection: "row",
@@ -103,6 +217,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
   },
+  accionBtn: {
+    flex: 1,
+    borderRadius: 6,
+    paddingVertical: 5,
+    marginHorizontal: 4,
+  },
+  accionTxt: {
+    color: Colores.blanco,
+    fontWeight: "bold",
+    textAlign: "center",
+    fontSize: 13,
+  },
   pagination: {
     flexDirection: "row",
     justifyContent: "center",
@@ -124,19 +250,55 @@ const styles = StyleSheet.create({
     color: Colores.azul,
     fontSize: 16,
   },
-  searchLabel: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalBox: {
+    width: "85%",
+    backgroundColor: Colores.blanco,
+    borderRadius: 12,
+    padding: 20,
+    alignItems: "center",
+  },
+  modalTitle: {
     fontWeight: "bold",
-    color: Colores.negro,
-    marginTop: 20,
-    marginBottom: 6,
+    color: Colores.azul,
+    fontSize: 18,
+    marginBottom: 12,
   },
-  searchBar: {
-    borderWidth: 1,
-    borderColor: Colores.borde,
-    borderRadius: 6,
-    padding: 10,
+  modalText: {
+    fontSize: 15,
+    color: Colores.texto,
+    marginVertical: 3,
   },
-  placeholder: {
-    color: "#888",
+  modalBtns: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+    width: "100%",
+  },
+  modalBtn: {
+    flex: 1,
+    borderRadius: 8,
+    marginHorizontal: 6,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  modalBtnText: {
+    color: Colores.blanco,
+    fontWeight: "bold",
+  },
+  modalCerrar: {
+    marginTop: 14,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+  },
+  modalCerrarTxt: {
+    color: Colores.blanco,
+    fontWeight: "bold",
   },
 });
