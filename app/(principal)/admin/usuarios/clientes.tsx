@@ -1,172 +1,142 @@
 import React, { useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 const Colores = {
   azul: "#0052FF",
   blanco: "#FFFFFF",
-  grisClaro: "#E6E9FF",
+  grisClaro: "#F5F6FA",
   negro: "#000000",
-  rojo: "#E53935",
+  borde: "#DDE1F1",
+  texto: "#333333",
 };
 
 export default function Clientes() {
-  const [nombre, setNombre] = useState("");
-  const [celular, setCelular] = useState("");
-  const [estado, setEstado] = useState<"activo" | "suspendido" | null>(null);
-
-  const handleSuspender = () => {
-    setEstado("suspendido");
-    alert(`Cliente ${nombre || "sin nombre"} suspendido`);
-  };
-
-  const handleActivar = () => {
-    setEstado("activo");
-    alert(`Cliente ${nombre || "sin nombre"} activado`);
-  };
+  // Simulación de datos
+  const [clientes] = useState([
+    { id: 1, nombre: "Juan Pérez", celular: "76543210", accion: "Activo" },
+    { id: 2, nombre: "María López", celular: "71234567", accion: "Suspendido" },
+    { id: 3, nombre: "Carlos Gómez", celular: "78901234", accion: "Activo" },
+    { id: 4, nombre: "Lucía Rivas", celular: "75678901", accion: "Activo" },
+  ]);
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {/* 1. Nombre */}
-      <Text style={styles.label}>
-        1. <Text style={styles.bold}>Nombre de Cliente:</Text>
-      </Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Ingrese nombre del cliente"
-        value={nombre}
-        onChangeText={setNombre}
-      />
+    <ScrollView style={styles.container}>
+      <Text style={styles.titulo}>Lista de Clientes</Text>
 
-      {/* 2. Celular */}
-      <Text style={styles.label}>
-        2. <Text style={styles.bold}>Celular:</Text>
-      </Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Ingrese número de celular"
-        keyboardType="phone-pad"
-        value={celular}
-        onChangeText={setCelular}
-      />
-
-      {/* 3. Acción */}
-      <Text style={styles.label}>
-        3. <Text style={styles.bold}>Acción:</Text>
-      </Text>
-
-      <View style={styles.buttonGroup}>
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: Colores.rojo }]}
-          onPress={handleSuspender}
-        >
-          <Text style={styles.buttonText}>Suspender</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: Colores.azul }]}
-          onPress={handleActivar}
-        >
-          <Text style={styles.buttonText}>Activar</Text>
-        </TouchableOpacity>
+      {/* Encabezado */}
+      <View style={styles.headerRow}>
+        <Text style={[styles.headerText, { flex: 2 }]}>Nombre de Cliente</Text>
+        <Text style={[styles.headerText, { flex: 1 }]}>Celular</Text>
+        <Text style={[styles.headerText, { flex: 1 }]}>Estado</Text>
       </View>
 
-      {/* 4. Paginación */}
-      <Text style={styles.label}>
-        4. <Text style={styles.bold}>Paginación</Text>
-      </Text>
+      {/* Filas */}
+      {clientes.map((c) => (
+        <View key={c.id} style={styles.dataRow}>
+          <Text style={[styles.dataText, { flex: 2 }]}>{c.nombre}</Text>
+          <Text style={[styles.dataText, { flex: 1 }]}>{c.celular}</Text>
+          <Text
+            style={[
+              styles.dataText,
+              { flex: 1, color: c.accion === "Activo" ? "green" : "red", fontWeight: "bold" },
+            ]}
+          >
+            {c.accion}
+          </Text>
+        </View>
+      ))}
+
+      {/* Paginación */}
       <View style={styles.pagination}>
-        <TouchableOpacity style={styles.pageButton}>
-          <Text style={styles.pageText}>{"<"}</Text>
-        </TouchableOpacity>
+        <Text style={styles.pageBtn}>{"<"}</Text>
         <Text style={styles.pageNumber}>1</Text>
-        <TouchableOpacity style={styles.pageButton}>
-          <Text style={styles.pageText}>{">"}</Text>
-        </TouchableOpacity>
+        <Text style={styles.pageBtn}>{">"}</Text>
       </View>
 
-      {/* 5. Buscador */}
-      <Text style={styles.label}>
-        5. <Text style={styles.bold}>Buscador</Text>
-      </Text>
-      <TextInput style={styles.input} placeholder="Buscar cliente..." />
-
-      {/* Estado actual */}
-      {estado && (
-        <Text
-          style={[
-            styles.estado,
-            { color: estado === "activo" ? "green" : Colores.rojo },
-          ]}
-        >
-          Estado actual: {estado === "activo" ? "Activo ✅" : "Suspendido ⛔"}
-        </Text>
-      )}
+      {/* Buscador (decorativo por ahora) */}
+      <Text style={styles.searchLabel}>Buscador:</Text>
+      <View style={styles.searchBar}>
+        <Text style={styles.placeholder}>🔍 Buscar cliente...</Text>
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flexGrow: 1,
-    padding: 20,
+    flex: 1,
     backgroundColor: Colores.blanco,
+    padding: 16,
   },
-  label: {
-    fontSize: 16,
-    color: Colores.negro,
-    marginTop: 10,
-    marginBottom: 5,
-  },
-  bold: {
+  titulo: {
+    fontSize: 20,
     fontWeight: "bold",
+    color: Colores.azul,
+    marginBottom: 14,
+    textAlign: "center",
   },
-  input: {
-    borderWidth: 1,
-    borderColor: Colores.azul,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+  headerRow: {
+    flexDirection: "row",
     backgroundColor: Colores.grisClaro,
-    fontSize: 15,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colores.borde,
   },
-  buttonGroup: {
-    marginTop: 10,
-    marginBottom: 15,
-  },
-  button: {
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  buttonText: {
-    color: Colores.blanco,
+  headerText: {
     fontWeight: "bold",
-    fontSize: 16,
+    color: Colores.azul,
+    textAlign: "center",
+    fontSize: 14,
+  },
+  dataRow: {
+    flexDirection: "row",
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: Colores.borde,
+    alignItems: "center",
+  },
+  dataText: {
+    color: Colores.texto,
+    fontSize: 14,
+    textAlign: "center",
   },
   pagination: {
     flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 16,
     alignItems: "center",
-    marginVertical: 10,
   },
-  pageButton: {
+  pageBtn: {
     backgroundColor: Colores.azul,
-    borderRadius: 6,
-    padding: 8,
-  },
-  pageText: {
     color: Colores.blanco,
     fontWeight: "bold",
     fontSize: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    marginHorizontal: 6,
   },
   pageNumber: {
-    marginHorizontal: 15,
     fontWeight: "bold",
+    color: Colores.azul,
     fontSize: 16,
   },
-  estado: {
-    marginTop: 15,
-    textAlign: "center",
+  searchLabel: {
     fontWeight: "bold",
-    fontSize: 16,
+    color: Colores.negro,
+    marginTop: 20,
+    marginBottom: 6,
+  },
+  searchBar: {
+    borderWidth: 1,
+    borderColor: Colores.borde,
+    borderRadius: 6,
+    padding: 10,
+  },
+  placeholder: {
+    color: "#888",
   },
 });
