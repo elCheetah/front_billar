@@ -182,11 +182,7 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
                   active={pathname.endsWith("/admin/locales/activos")}
                   onPress={() => go("/(principal)/admin/locales/activos")}
                 />
-                <SubItem
-                  label="Locales Suspendidos"
-                  active={pathname.endsWith("/admin/locales/suspendidos")}
-                  onPress={() => go("/(principal)/admin/locales/suspendidos")}
-                />
+               
               </SubMenu>
             )}
           </>
