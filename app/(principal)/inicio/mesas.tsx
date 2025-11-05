@@ -1,5 +1,4 @@
 // app/(principal)/inicio/mesas.tsx
-import { api } from "@/components/api";
 import { AntDesign, Feather, Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -16,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { api } from "../../../components/api"; // usa tu helper sin token
 
 type MesaResumenDTO = {
   id: number;
@@ -75,8 +75,10 @@ export default function Mesas() {
     }
     try {
       setError(null);
-      const res: MesasDelLocalResponse = await api(`/locales/mesas-del-local/${parsedId}`);
-      setData(res);
+      // Nueva ruta: /api/mesasLocal/:idLocal  -> helper api ya añade /api
+      // Así que usamos "/mesasLocal/<id>"
+      const res: { ok: boolean; data: MesasDelLocalResponse } = await api(`/mesasLocal/${parsedId}`);
+      setData(res.data);
     } catch (e: any) {
       setError(e?.message ?? "No se pudo cargar la información.");
     } finally {
@@ -95,7 +97,7 @@ export default function Mesas() {
     if (!data) return;
     const imgs = data.imagenesLocal?.length ? data.imagenesLocal : [PLACE_LOCAL];
     if (imgs.length <= 1) return;
-    slideInterval.current && clearInterval(slideInterval.current);
+    if (slideInterval.current) clearInterval(slideInterval.current);
     slideInterval.current = setInterval(() => {
       setSlide((s) => {
         const next = (s + 1) % imgs.length;
@@ -104,7 +106,7 @@ export default function Mesas() {
       });
     }, 3000);
     return () => {
-      slideInterval.current && clearInterval(slideInterval.current);
+      if (slideInterval.current) clearInterval(slideInterval.current);
     };
   }, [data]);
 
@@ -195,56 +197,66 @@ export default function Mesas() {
         )}
       </View>
 
-      {/* Lista de mesas */}
+      {/* Lista de mesas (manejo de vacío) */}
       <View style={{ marginTop: 12 }}>
-        {data.mesas.map((m) => {
-          const estadoOn = m.estado === "DISPONIBLE";
-          return (
-            <View key={m.id} style={styles.card}>
-              <View style={{ position: "relative" }}>
-                <Image
-                  source={{ uri: m.imagen || PLACE_MESA }}
-                  style={styles.cardImg}
-                  resizeMode="cover"
-                />
-                <View style={styles.cardBadges}>
-                  <View
-                    style={[
-                      styles.badge,
-                      { backgroundColor: estadoOn ? Colores.verde : Colores.rojo },
-                    ]}
-                  >
-                    <Text style={styles.badgeText}>{m.estado}</Text>
+        {data.mesas.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Ionicons name="information-circle-outline" size={22} color={Colores.azulMedio} />
+            <Text style={styles.emptyText}>
+              El local no tiene mesas disponibles por el momento.
+            </Text>
+          </View>
+        ) : (
+          data.mesas.map((m) => {
+            const estadoOn = m.estado === "DISPONIBLE";
+            return (
+              <View key={m.id} style={styles.card}>
+                <View style={{ position: "relative" }}>
+                  <Image
+                    source={{ uri: m.imagen || PLACE_MESA }}
+                    style={styles.cardImg}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.cardBadges}>
+                    <View
+                      style={[
+                        styles.badge,
+                        { backgroundColor: estadoOn ? Colores.verde : Colores.rojo },
+                      ]}
+                    >
+                      <Text style={styles.badgeText}>{m.estado}</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
 
-              <View style={styles.cardBody}>
-                <Text style={styles.cardTitle}>{`Mesa ${m.numero_mesa}`}</Text>
-                <View style={styles.metaRow}>
-                  <Feather name="tag" size={14} color={Colores.azulMedio} />
-                  <Text style={styles.metaText}>Tipo: {m.tipo_mesa}</Text>
-                </View>
-                <View style={styles.metaRow}>
-                  <Ionicons name="cash-outline" size={16} color={Colores.azulMedio} />
-                  <Text style={styles.metaText}>Precio: Bs {m.precio_hora}/hora</Text>
-                </View>
+                <View style={styles.cardBody}>
+                  <Text style={styles.cardTitle}>{`Mesa ${m.numero_mesa}`}</Text>
+                  <View style={styles.metaRow}>
+                    <Feather name="tag" size={14} color={Colores.azulMedio} />
+                    <Text style={styles.metaText}>Tipo: {m.tipo_mesa}</Text>
+                  </View>
+                  <View style={styles.metaRow}>
+                    <Ionicons name="cash-outline" size={16} color={Colores.azulMedio} />
+                    <Text style={styles.metaText}>Precio: Bs {m.precio_hora}/hora</Text>
+                  </View>
 
-                <TouchableOpacity
-                  style={[styles.btn, { marginTop: 10 }]}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/(principal)/inicio/reservar",
-                      params: { mesaId: String(m.id), localId: String(data.idLocal) },
-                    })
-                  }
-                >
-                  <Text style={styles.btnText}>Reservar</Text>
-                </TouchableOpacity>
+                  {/* Este botón SOLO navega y manda id de mesa (reserva se implementará aparte) */}
+                  <TouchableOpacity
+                    style={[styles.btn, { marginTop: 10 }]}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/(principal)/inicio/reservar",
+                        params: { mesaId: String(m.id), localId: String(data.idLocal) },
+                      })
+                    }
+                  >
+                    <Text style={styles.btnText}>Reservar</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          );
-        })}
+            );
+          })
+        )}
       </View>
     </ScrollView>
   );
@@ -291,6 +303,20 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   whatsText: { color: Colores.blanco, fontWeight: "800", fontSize: 12 },
+
+  emptyCard: {
+    backgroundColor: Colores.blanco,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    gap: 8,
+    elevation: 2,
+    shadowColor: Colores.sombra,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  emptyText: { color: Colores.grisTexto, textAlign: "center" },
 
   card: {
     backgroundColor: Colores.blanco,
