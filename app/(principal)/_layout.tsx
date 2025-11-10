@@ -100,8 +100,8 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
 
   // ruta Inicio por rol
   const rutaInicio: string = useMemo(() => {
-    if (rol === "ADMINISTRADOR") return "/(principal)/dashboard";
-    if (rol === "PROPIETARIO") return "/(principal)/dashboard";
+    if (rol === "ADMINISTRADOR") return "/(principal)/dashboard/admin";
+    if (rol === "PROPIETARIO") return "/(principal)/dashboard/propietario";
     return "/(principal)/inicio/filtros";
   }, [rol]);
 
@@ -178,7 +178,7 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
             {openLocales && (
               <SubMenu>
                 <SubItem
-                  label="Locales Activos"
+                  label="Locales Activos e Inactivos"
                   active={pathname.endsWith("/admin/locales/activos")}
                   onPress={() => go("/(principal)/admin/locales/activos")}
                 />

@@ -96,7 +96,7 @@ export default function Historial() {
   const hoy = useMemo(() => hoyUTC(), []);
   const [fechaInicio, setFechaInicio] = useState<Date>(() => addDays(hoy, -31));
   const [fechaFin, setFechaFin] = useState<Date>(() => hoy);
-  const minimoPermitido = useMemo(() => addDays(hoy, -365), [hoy]); // 1 año atrás
+  const minimoPermitido = useMemo(() => addDays(hoy, -364), [hoy]); // 1 año atrás
   const maximoPermitido = hoy; // no futuro
 
   // UI
