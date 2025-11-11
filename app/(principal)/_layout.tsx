@@ -195,13 +195,13 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
               label="Solicitudes de Reserva"
               icon="inbox"
               active={pathname.endsWith("/propietario/solicitudes")}
-              onPress={() => go("/(principal)/propietario/solicitudes")}
+              onPress={() => go("/(principal)/solPropietario/solicitudes")}
             />
             <NavItem
               label="Mesas en Uso"
               icon="grid"
               active={pathname.endsWith("/propietario/mesas-uso")}
-              onPress={() => go("/(principal)/propietario/mesas-uso")}
+              onPress={() => go("/(principal)/solPropietario/mesas-uso")}
             />
             <NavItem
               label="Historial de Reservas"
@@ -245,7 +245,7 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
               label="Devoluciones"
               icon="rotate-ccw"
               active={pathname.endsWith("/propietario/devoluciones")}
-              onPress={() => go("/(principal)/solicitudes/devoluciones")}
+              onPress={() => go("/(principal)/solPropietario/devoluciones")}
             />
           </>
         )}
@@ -262,15 +262,11 @@ function CustomDrawerContent({ user, onLogout, navigation }: CustomDrawerProps) 
             {openMisReservas && (
               <SubMenu>
                 <SubItem
-                  label="Pendientes"
+                  label="Solicitudes de reserva"
                   active={pathname.endsWith("/cliente/reservas/pendientes")}
-                  onPress={() => go("/(principal)/solicitudes/pendientes")}
+                  onPress={() => go("/(principal)/solCliente/pendientes")}
                 />
-                <SubItem
-                  label="Confirmadas"
-                  active={pathname.endsWith("/cliente/reservas/confirmadas")}
-                  onPress={() => go("/(principal)/solicitudes/confirmadas")}
-                />
+                
               
               </SubMenu>
             )}

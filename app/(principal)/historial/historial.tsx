@@ -18,7 +18,6 @@ import {
 import { api } from "../../../components/api";
 import { AuthUser, getToken, getUser } from "../../../utils/authStorage";
 
-// 🎨 Paleta de colores
 const Colores = {
   azul: "#0052FF",
   azulClaro: "#E8F1FF",
@@ -31,27 +30,24 @@ const Colores = {
   negro: "#000000",
 };
 
-// Tipos del backend (resumen)
-type EstadoHist = "Cancelada" | "Finalizada";
-type ItemHistorial = {
-  // Solo propietario
-  nombreCliente?: string; // MAYÚSCULAS
+type EstadoHist = "Cancelada" | "Finalizada" | "Rechazada";
 
+type ItemHistorial = {
+  nombreCliente?: string;
   nombreLocal: string;
   numeroMesa: number;
-  tipoMesa: string; // "pool" | "carambola" | "snooker" | "mixto"
-
-  fechaReserva: string; // "YYYY-MM-DD"
-  horaInicio: string;   // "HH:mm"
-  duracion: string;     // "HH:mm"
-
+  tipoMesa: string;
+  fechaReserva: string;
+  horaInicio: string;
+  duracion: string;
   pagoEstimado: number | null;
   pagoQr: { monto: number; comprobante_url: string } | null;
-
   estado: EstadoHist;
-
-  // Solo si Cancelada
-  penalizacion?: string; // "Penalización X%"
+  penalizacion?: string;
+  comprobantePagoUrl?: string | null;
+  comprobanteReembolsoUrl?: string | null;
+  estadoReembolso?: "REEMBOLSADO" | "NO_REEMBOLSADO" | null;
+  montoReembolsado?: number | null;
 };
 
 type ResHistorial = {
@@ -61,30 +57,40 @@ type ResHistorial = {
   message?: string;
 };
 
-// Utils de fecha
-function hoyUTC() {
+function hoyLocal00() {
   const d = new Date();
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
-function addDays(d: Date, days: number) {
+
+function finDeHoyLocal() {
+  const d = new Date();
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+function addDaysLocal(d: Date, days: number) {
   const dt = new Date(d.getTime());
-  dt.setUTCDate(dt.getUTCDate() + days);
+  dt.setDate(dt.getDate() + days);
+  dt.setHours(0, 0, 0, 0);
   return dt;
 }
-function toYMD(d: Date): string {
-  // YYYY-MM-DD en UTC
-  const y = d.getUTCFullYear();
-  const m = `${d.getUTCMonth() + 1}`.padStart(2, "0");
-  const day = `${d.getUTCDate()}`.padStart(2, "0");
+
+function toYMDLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
+
 function capitalizar(s: string) {
   if (!s) return s;
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
+
 function formatearBs(n: number) {
   const abs = Math.abs(n).toFixed(2);
-  return (n < 0 ? `-Bs ${abs}` : `Bs ${abs}`);
+  return n < 0 ? `-Bs ${abs}` : `Bs ${abs}`;
 }
 
 export default function Historial() {
@@ -92,23 +98,22 @@ export default function Historial() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
 
-  // Fechas (por defecto: desde = hoy - 31 días, hasta = hoy)
-  const hoy = useMemo(() => hoyUTC(), []);
-  const [fechaInicio, setFechaInicio] = useState<Date>(() => addDays(hoy, -31));
-  const [fechaFin, setFechaFin] = useState<Date>(() => hoy);
-  const minimoPermitido = useMemo(() => addDays(hoy, -364), [hoy]); // 1 año atrás
-  const maximoPermitido = hoy; // no futuro
+  const hoy = useMemo(() => hoyLocal00(), []);
+  const maximoPermitido = useMemo(() => finDeHoyLocal(), []);
+  const minimoPermitido = useMemo(() => addDaysLocal(hoy, -364), [hoy]);
 
-  // UI
+  const [fechaInicio, setFechaInicio] = useState<Date>(() => addDaysLocal(hoy, -31));
+  const [fechaFin, setFechaFin] = useState<Date>(() => hoyLocal00());
+
   const [showInicioPicker, setShowInicioPicker] = useState(false);
   const [showFinPicker, setShowFinPicker] = useState(false);
+  const [finPickerKey, setFinPickerKey] = useState(0);
+
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
-  // Datos
   const [items, setItems] = useState<ItemHistorial[]>([]);
 
-  // Cargar auth
   useEffect(() => {
     (async () => {
       const [t, u] = await Promise.all([getToken(), getUser()]);
@@ -121,115 +126,127 @@ export default function Historial() {
     })();
   }, [router]);
 
-  // Validaciones simples de front (además del backend)
-  const validarRango = useCallback((desde: Date, hasta: Date): string | null => {
-    if (hasta.getTime() < desde.getTime()) return "La fecha fin no puede ser menor que la fecha inicio.";
-    if (hasta.getTime() > maximoPermitido.getTime()) return "No puedes seleccionar fechas futuras.";
-    if (desde.getTime() < minimoPermitido.getTime())
-      return "El rango máximo permitido es de 1 año.";
-    return null;
-  }, [maximoPermitido, minimoPermitido]);
+  const validarRango = useCallback(
+    (desde: Date, hasta: Date): string | null => {
+      if (hasta.getTime() < desde.getTime()) return "La fecha fin no puede ser menor que la fecha inicio.";
+      if (hasta.getTime() > maximoPermitido.getTime()) return "No puedes seleccionar fechas futuras.";
+      if (desde.getTime() < minimoPermitido.getTime()) return "El rango máximo permitido es de 1 año.";
+      return null;
+    },
+    [maximoPermitido, minimoPermitido]
+  );
 
-  // Fetch al cambiar fechas o auth
   useEffect(() => {
     if (!user || !token) return;
 
     const err = validarRango(fechaInicio, fechaFin);
     if (err) {
       setError(err);
+      setItems([]);
       return;
     }
     setError("");
 
-    const controller = new AbortController();
+    let alive = true;
+
     const run = async () => {
       setLoading(true);
       try {
-        const desde = toYMD(fechaInicio);
-        const hasta = toYMD(fechaFin);
-        const resp = (await api(`/reservas/historial?desde=${desde}&hasta=${hasta}`, {
-          token,
-        })) as ResHistorial;
-        setItems(resp.data ?? []);
+        const desde = toYMDLocal(fechaInicio);
+        const hasta = toYMDLocal(fechaFin);
+        const resp = (await api(`/reservas/historial?desde=${desde}&hasta=${hasta}`, { token })) as ResHistorial;
+        if (!alive) return;
+        setItems(resp?.data ?? []);
       } catch (e: any) {
+        if (!alive) return;
         setItems([]);
         setError(e?.message || "No se pudo obtener el historial.");
       } finally {
+        if (!alive) return;
         setLoading(false);
       }
     };
 
-    // pequeño debounce para evitar muchas llamadas seguidas
-    const t = setTimeout(run, 250);
+    const t = setTimeout(run, 200);
     return () => {
+      alive = false;
       clearTimeout(t);
-      controller.abort();
     };
   }, [user, token, fechaInicio, fechaFin, validarRango]);
 
   const onChangeInicio = (_: any, selected?: Date) => {
-    setShowInicioPicker(Platform.OS === "ios");
+    if (Platform.OS !== "ios") setShowInicioPicker(false);
     if (!selected) return;
-    // anclar a 00:00 UTC
-    const d = new Date(Date.UTC(selected.getFullYear(), selected.getMonth(), selected.getDate(), 0, 0, 0, 0));
+    const d = new Date(selected.getTime());
+    d.setHours(0, 0, 0, 0);
     setFechaInicio(d);
   };
+
   const onChangeFin = (_: any, selected?: Date) => {
-    setShowFinPicker(Platform.OS === "ios");
+    if (Platform.OS !== "ios") setShowFinPicker(false);
     if (!selected) return;
-    // anclar a 00:00 UTC (el backend ya toma fin de día)
-    const d = new Date(Date.UTC(selected.getFullYear(), selected.getMonth(), selected.getDate(), 0, 0, 0, 0));
+    const d = new Date(selected.getTime());
+    d.setHours(0, 0, 0, 0);
     setFechaFin(d);
+    setFinPickerKey((k) => k + 1);
   };
 
   const handleBack = () => router.back();
 
-  const isCliente = user?.rol === "CLIENTE";
   const isProp = user?.rol === "PROPIETARIO";
   const nombreTitulo = useMemo(() => (user ? user.nombreCompleto : "Usuario"), [user]);
 
-  // Monto + color según reglas
   function getMontoYColor(item: ItemHistorial) {
-    const monto = item.pagoEstimado !== null
-      ? item.pagoEstimado
-      : (item.pagoQr?.monto ?? 0);
+    const monto = item.pagoEstimado !== null ? item.pagoEstimado : item.pagoQr?.monto ?? 0;
+    if (isProp) return { monto, color: Colores.verde };
 
-    if (isProp) {
-      // propietario: siempre verde (ingreso)
-      return { monto, color: Colores.verde };
-    }
-    // cliente: canceladas negativas en rojo; 0 en verde; finalizadas positivas en verde
     if (item.estado === "Cancelada") {
       if (monto < 0) return { monto, color: Colores.rojo };
-      return { monto, color: Colores.verde }; // 0 va verde
+      return { monto, color: Colores.verde };
     }
     return { monto, color: Colores.verde };
   }
 
-  // PDF export (HTML simple)
+  function getEstadoColor(estado: EstadoHist) {
+    if (estado === "Finalizada") return Colores.verde;
+    if (estado === "Rechazada") return Colores.amarillo;
+    return Colores.rojo;
+  }
+
   const handleExportPDF = async () => {
     try {
-      const desde = toYMD(fechaInicio);
-      const hasta = toYMD(fechaFin);
+      const desde = toYMDLocal(fechaInicio);
+      const hasta = toYMDLocal(fechaFin);
 
-      const rows = items.map((it) => {
-        const { monto } = getMontoYColor(it);
-        const montoTxt = formatearBs(monto);
-        const penal = it.penalizacion ? ` - ${it.penalizacion}` : "";
-        const mesaTxt = `Mesa ${it.numeroMesa} - ${capitalizar(it.tipoMesa)}`;
-        const clienteTxt = isProp && it.nombreCliente ? ` - ${it.nombreCliente}` : "";
-        return `
-          <tr>
-            <td>${it.fechaReserva}</td>
-            <td>${it.horaInicio}</td>
-            <td>${it.duracion}</td>
-            <td>${it.nombreLocal}</td>
-            <td>${mesaTxt}${clienteTxt}</td>
-            <td>${it.estado}${penal}</td>
-            <td style="text-align:right;">${montoTxt}</td>
-          </tr>
-        `;
-      }).join("");
+      const rows = items
+        .map((it) => {
+          const { monto } = getMontoYColor(it);
+          const montoTxt = formatearBs(monto);
+          const penal = it.penalizacion ? ` - ${it.penalizacion}` : "";
+          const mesaTxt = `Mesa ${it.numeroMesa} - ${capitalizar(it.tipoMesa)}`;
+          const clienteTxt = isProp && it.nombreCliente ? ` - ${it.nombreCliente}` : "";
+
+          const compUrl = it.comprobantePagoUrl ?? it.pagoQr?.comprobante_url ?? null;
+          const devUrl = it.comprobanteReembolsoUrl ?? null;
+
+          const compHtml = compUrl ? `<a href="${compUrl}">Ver</a>` : `-`;
+          const devHtml = devUrl ? `<a href="${devUrl}">Ver</a>` : `-`;
+
+          return `
+            <tr>
+              <td>${it.fechaReserva}</td>
+              <td>${it.horaInicio}</td>
+              <td>${it.duracion}</td>
+              <td>${it.nombreLocal}</td>
+              <td>${mesaTxt}${clienteTxt}</td>
+              <td>${it.estado}${penal}</td>
+              <td style="text-align:right;">${montoTxt}</td>
+              <td>${compHtml}</td>
+              <td>${devHtml}</td>
+            </tr>
+          `;
+        })
+        .join("");
 
       const html = `
         <html>
@@ -242,6 +259,7 @@ export default function Historial() {
               table { width: 100%; border-collapse: collapse; font-size: 12px; }
               th, td { border: 1px solid #ddd; padding: 8px; }
               th { background: #f2f2f2; text-align: left; }
+              a { color: #0052FF; text-decoration: none; }
             </style>
           </head>
           <body>
@@ -257,6 +275,8 @@ export default function Historial() {
                   <th>Mesa</th>
                   <th>Estado</th>
                   <th style="text-align:right;">Monto</th>
+                  <th>Comprobante</th>
+                  <th>Devolución</th>
                 </tr>
               </thead>
               <tbody>${rows}</tbody>
@@ -276,46 +296,51 @@ export default function Historial() {
 
   return (
     <View style={styles.container}>
-      {/* Back */}
       <TouchableOpacity style={styles.backButton} onPress={handleBack}>
         <Ionicons name="arrow-back" size={24} color={Colores.azul} />
       </TouchableOpacity>
 
-      {/* Título */}
       <Text style={styles.titulo}>Historial</Text>
 
-      {/* Filtros de fecha */}
       <View style={styles.filterContainer}>
         <View style={styles.dateSection}>
           <Text style={styles.dateTitle}>Fecha Inicio</Text>
           <TouchableOpacity onPress={() => setShowInicioPicker(true)} style={styles.dateInput}>
-            <Text style={styles.dateText}>{toYMD(fechaInicio)}</Text>
+            <Text style={styles.dateText}>{toYMDLocal(fechaInicio)}</Text>
           </TouchableOpacity>
           {showInicioPicker && (
             <DateTimePicker
-              value={new Date(fechaInicio)}
+              key={`ini-${fechaInicio.getTime()}`}
+              value={new Date(fechaInicio.getTime())}
               mode="date"
               display="default"
               onChange={onChangeInicio}
-              minimumDate={new Date(minimoPermitido)}
-              maximumDate={new Date(maximoPermitido)}
+              minimumDate={new Date(minimoPermitido.getTime())}
+              maximumDate={new Date(maximoPermitido.getTime())}
             />
           )}
         </View>
 
         <View style={styles.dateSection}>
           <Text style={styles.dateTitle}>Fecha Fin</Text>
-          <TouchableOpacity onPress={() => setShowFinPicker(true)} style={styles.dateInput}>
-            <Text style={styles.dateText}>{toYMD(fechaFin)}</Text>
+          <TouchableOpacity
+            onPress={() => {
+              setFinPickerKey((k) => k + 1);
+              setShowFinPicker(true);
+            }}
+            style={styles.dateInput}
+          >
+            <Text style={styles.dateText}>{toYMDLocal(fechaFin)}</Text>
           </TouchableOpacity>
           {showFinPicker && (
             <DateTimePicker
-              value={new Date(fechaFin)}
+              key={`fin-${finPickerKey}-${fechaFin.getTime()}`}
+              value={new Date(fechaFin.getTime())}
               mode="date"
               display="default"
               onChange={onChangeFin}
-              minimumDate={new Date(minimoPermitido)}
-              maximumDate={new Date(maximoPermitido)}
+              minimumDate={new Date(minimoPermitido.getTime())}
+              maximumDate={new Date(maximoPermitido.getTime())}
             />
           )}
         </View>
@@ -323,7 +348,6 @@ export default function Historial() {
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      {/* Exportar PDF */}
       <View style={styles.actionsRow}>
         <TouchableOpacity style={styles.pdfButton} onPress={handleExportPDF}>
           <Ionicons name="document" size={20} color={Colores.azul} />
@@ -345,8 +369,21 @@ export default function Historial() {
           ) : (
             items.map((reserva, idx) => {
               const { monto, color } = getMontoYColor(reserva);
-              const estadoEsFinal = reserva.estado === "Finalizada";
-              const tieneComprobante = !!reserva.pagoQr?.comprobante_url && estadoEsFinal;
+
+              const urlComprobante =
+                reserva.comprobantePagoUrl ?? reserva.pagoQr?.comprobante_url ?? null;
+
+              const urlDevolucion = reserva.comprobanteReembolsoUrl ?? null;
+
+              const mostrarPenalizacion =
+                reserva.estado === "Cancelada" &&
+                reserva.estadoReembolso === "REEMBOLSADO" &&
+                reserva.penalizacion;
+
+              const mostrarMontoReembolsado =
+                reserva.estado === "Cancelada" &&
+                reserva.estadoReembolso === "REEMBOLSADO" &&
+                reserva.montoReembolsado != null;
 
               return (
                 <View key={`${reserva.fechaReserva}-${idx}`} style={styles.card}>
@@ -362,22 +399,25 @@ export default function Historial() {
                     </View>
 
                     <View style={styles.estadoWrap}>
-                      <View
-                        style={[
-                          styles.estadoEtiqueta,
-                          estadoEsFinal ? { backgroundColor: Colores.verde } : { backgroundColor: Colores.rojo },
-                        ]}
-                      >
+                      <View style={[styles.estadoEtiqueta, { backgroundColor: getEstadoColor(reserva.estado) }]}>
                         <Text style={styles.estadoTexto}>{reserva.estado}</Text>
                       </View>
 
-                      {/* Ícono de descarga si hay comprobante (solo Finalizada y con URL) */}
-                      {tieneComprobante ? (
+                      {urlComprobante ? (
                         <TouchableOpacity
-                          style={{ marginLeft: 8, padding: 4 }}
-                          onPress={() => Linking.openURL(reserva.pagoQr!.comprobante_url)}
+                          style={styles.iconBtn}
+                          onPress={() => Linking.openURL(urlComprobante)}
                         >
-                          <Ionicons name="download-outline" size={20} color={Colores.azul} />
+                          <Ionicons name="document-text-outline" size={20} color={Colores.azul} />
+                        </TouchableOpacity>
+                      ) : null}
+
+                      {urlDevolucion ? (
+                        <TouchableOpacity
+                          style={styles.iconBtn}
+                          onPress={() => Linking.openURL(urlDevolucion)}
+                        >
+                          <Ionicons name="repeat-outline" size={20} color={Colores.azul} />
                         </TouchableOpacity>
                       ) : null}
                     </View>
@@ -394,13 +434,39 @@ export default function Historial() {
                     Duración: <Text style={styles.bold}>{reserva.duracion}</Text>
                   </Text>
 
-                  {/* Solo en Cancelada mostramos penalización si viene */}
-                  {reserva.estado === "Cancelada" && (
+                  {reserva.pagoQr ? (
                     <Text style={styles.infoTexto}>
-                      Penalización:{" "}
-                      <Text style={styles.bold}>{reserva.penalizacion ?? "Penalización 0%"}</Text>
+                      Pago: <Text style={styles.bold}>Bs {Number(reserva.pagoQr.monto).toFixed(2)}</Text>
                     </Text>
-                  )}
+                  ) : null}
+
+                  {reserva.pagoEstimado !== null ? (
+                    <Text style={styles.infoTexto}>
+                      Estimado: <Text style={styles.bold}>Bs {Number(reserva.pagoEstimado).toFixed(2)}</Text>
+                    </Text>
+                  ) : null}
+
+                  {reserva.estado === "Cancelada" && reserva.estadoReembolso ? (
+                    <Text style={styles.infoTexto}>
+                      Reembolso:{" "}
+                      <Text style={styles.bold}>
+                        {reserva.estadoReembolso === "REEMBOLSADO" ? "Reembolsado" : "No reembolsado"}
+                      </Text>
+                    </Text>
+                  ) : null}
+
+                  {mostrarMontoReembolsado ? (
+                    <Text style={styles.infoTexto}>
+                      Monto reembolsado:{" "}
+                      <Text style={styles.bold}>Bs {Number(reserva.montoReembolsado).toFixed(2)}</Text>
+                    </Text>
+                  ) : null}
+
+                  {mostrarPenalizacion ? (
+                    <Text style={styles.infoTexto}>
+                      Penalización: <Text style={styles.bold}>{reserva.penalizacion}</Text>
+                    </Text>
+                  ) : null}
 
                   <View style={styles.precioContainer}>
                     <Text style={[styles.precio, { color }]}>{formatearBs(monto)}</Text>
@@ -415,7 +481,6 @@ export default function Historial() {
   );
 }
 
-/* ---------- estilos ---------- */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -504,6 +569,10 @@ const styles = StyleSheet.create({
   estadoWrap: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  iconBtn: {
+    marginLeft: 6,
+    padding: 4,
   },
   localNombre: {
     fontWeight: "800",
